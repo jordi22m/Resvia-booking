@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Resvia SaaS Color Palette */
+    --background: 215 43% 98%;
+    --foreground: 215 32% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 32% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 32% 10%;
+
+    /* Primary Blue - #2563EB */
+    --primary: 210 100% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 214 32% 93%;
+    --secondary-foreground: 215 32% 10%;
+
+    --muted: 214 32% 93%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent light blue */
+    --accent: 210 100% 91%;
+    --accent-foreground: 210 100% 40%;
+
+    /* Danger Red - #EF4444 */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 93%;
+    --input: 214 32% 93%;
+    --ring: 210 100% 54%;
+
+    --radius: 0.75rem;
+
+    /* Success Green - #22C55E */
+    --success: 142 72% 48%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
+    /* Info Blue */
+    --info: 210 100% 54%;
+    --info-foreground: 0 0% 100%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 215 32% 10%;
+    /* Sidebar primary - Resvia Blue */
+    --sidebar-primary: 210 100% 54%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 100% 91%;
+    --sidebar-accent-foreground: 210 100% 40%;
+    --sidebar-border: 214 32% 93%;
+    --sidebar-ring: 210 100% 54%;
+
+    /* Status colors */
+    --status-confirmed: 142 72% 48%;
+    --status-pending: 38 92% 55%;
+    --status-canceled: 0 84% 60%;
+    --status-completed: 142 72% 48%;
+    --status-noshow: 215 16% 47%;
+  }
+
+  .dark {
+    --background: 217 33% 10%;
+    --foreground: 214 32% 91%;
+    --card: 217 33% 14%;
+    --card-foreground: 214 32% 91%;
+    --popover: 217 33% 14%;
+    --popover-foreground: 214 32% 91%;
+    /* Primary Blue for dark */
+    --primary: 210 100% 60%;
+    --primary-foreground: 215 32% 10%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 214 32% 91%;
+    --muted: 217 33% 18%;
+    --muted-foreground: 215 16% 60%;
+    /* Accent light blue for dark */
+    --accent: 210 100% 24%;
+    --accent-foreground: 210 100% 75%;
+    --destructive: 0 84% 48%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 210 100% 60%;
+    --sidebar-background: 217 33% 12%;
+    --sidebar-foreground: 214 32% 75%;
+    /* Sidebar primary - Resvia Blue */
+    --sidebar-primary: 210 100% 60%;
+    --sidebar-primary-foreground: 215 32% 10%;
+    --sidebar-accent: 210 100% 24%;
+    --sidebar-accent-foreground: 210 100% 75%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 210 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm;
+  }
+}
