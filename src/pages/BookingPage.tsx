@@ -247,7 +247,7 @@ export default function BookingPage() {
           <CardContent className="p-6 text-center space-y-2">
             <h2 className="text-xl font-semibold text-foreground">Reservas desactivadas</h2>
             <p className="text-muted-foreground text-sm">
-              Este negocio no esta aceptando reservas online en este momento.
+              Este negocio no está aceptando reservas online en este momento.
             </p>
           </CardContent>
         </Card>
