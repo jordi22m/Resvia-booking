@@ -102,19 +102,97 @@ export async function triggerWebhook(
   userId: string,
   _session?: Session | null
 ): Promise<void> {
+  const correlationId = crypto.randomUUID();
+  const eventPayload: Record<string, Json> = {
+    ...payload,
+    _meta: {
+      correlation_id: correlationId,
+      created_at: new Date().toISOString(),
+      source: 'triggerWebhook',
+    },
+  };
+
   try {
+    console.info('[webhook] enqueue:start', { event, userId, correlationId });
+
     const { error } = await supabase.rpc('enqueue_webhook_event', {
       p_user_id: userId,
       p_event_type: event,
-      p_payload: payload,
+      p_payload: eventPayload,
     });
 
     if (error) {
-      console.warn('Webhook enqueue failed:', { event, userId, error });
+      console.error('[webhook] enqueue:rpc_failed', {
+        event,
+        userId,
+        correlationId,
+        error,
+      });
+
+      // Fallback: insert directly in queue so event is not lost.
+      const { data: cfg, error: cfgError } = await supabase
+        .from('webhook_configs')
+        .select('id, selected_events, active')
+        .eq('user_id', userId)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (cfgError) {
+        console.error('[webhook] enqueue:fallback_config_failed', {
+          event,
+          userId,
+          correlationId,
+          error: cfgError,
+        });
+        return;
+      }
+
+      if (!cfg || !(cfg.selected_events || []).includes(event)) {
+        console.warn('[webhook] enqueue:skipped_no_active_config_or_event', {
+          event,
+          userId,
+          correlationId,
+        });
+        return;
+      }
+
+      const { error: insertError } = await supabase.from('webhook_events').insert({
+        user_id: userId,
+        config_id: cfg.id,
+        event_type: event,
+        payload: eventPayload,
+        status: 'pending',
+        last_error: `enqueue_webhook_event failed: ${error.message}`.slice(0, 1024),
+      });
+
+      if (insertError) {
+        console.error('[webhook] enqueue:fallback_insert_failed', {
+          event,
+          userId,
+          correlationId,
+          error: insertError,
+        });
+      } else {
+        console.info('[webhook] enqueue:fallback_insert_ok', { event, userId, correlationId });
+      }
     } else {
-      console.log('Webhook enqueued successfully:', event);
+      console.info('[webhook] enqueue:ok', { event, userId, correlationId });
+
+      // Best-effort immediate dispatch. Queue remains source of truth.
+      const { error: invokeError } = await supabase.functions.invoke('send-webhook', {
+        body: { limit: 20, correlation_id: correlationId },
+      });
+
+      if (invokeError) {
+        console.warn('[webhook] dispatch:invoke_failed', {
+          event,
+          userId,
+          correlationId,
+          error: invokeError,
+        });
+      }
     }
   } catch (error) {
-    console.warn('Webhook trigger error:', { event, userId, error });
+    console.error('[webhook] trigger:unexpected_error', { event, userId, correlationId, error });
   }
 }
