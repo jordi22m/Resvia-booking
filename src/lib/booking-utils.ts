@@ -220,9 +220,12 @@ export function generateTimeSlots(
   for (const window of dayAvailabilities) {
     const start = new Date(`1970-01-01T${window.start_time}`);
     const end = new Date(`1970-01-01T${window.end_time}`);
+    // El slot solo es válido si el servicio completo cabe dentro de la ventana.
+    // Restamos la duración del servicio para que el bucle no genere slots inválidos.
+    const latestStart = new Date(end.getTime() - serviceDuration * 60_000);
     let currentTime = new Date(start);
 
-    while (currentTime < end) {
+    while (currentTime <= latestStart) {
       const timeString = format(currentTime, 'HH:mm');
       if (!seenTimes.has(timeString)) {
         const available = isTimeSlotAvailable(
