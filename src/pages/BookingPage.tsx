@@ -505,7 +505,7 @@ export default function BookingPage() {
                 {/* Days of week */}
                 <div className="grid grid-cols-7 gap-1 mb-2">
                   {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
-                    <div key={day} className="h-8 flex items-center justify-center text-xs font-medium text-muted-foreground">
+                    <div key={day} className="h-8 flex items-center justify-center text-xs font-medium text-muted-foreground" translate="no">
                       {day}
                     </div>
                   ))}

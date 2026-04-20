@@ -179,7 +179,7 @@ export default function CalendarPage() {
             return (
               <div key={day.toISOString()} className="flex-1 min-w-[120px] border-r border-border last:border-r-0">
                 <div className={cn("h-12 border-b border-border flex flex-col items-center justify-center", isToday && "bg-accent")}>
-                  <span className="text-[10px] text-muted-foreground uppercase">{format(day, 'EEE', { locale: es })}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase" translate="no">{format(day, 'EEE', { locale: es })}</span>
                   <span className={cn("text-sm font-medium", isToday ? "text-accent-foreground" : "text-foreground")}>{format(day, 'd')}</span>
                 </div>
                 <div className="relative">

@@ -10,8 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ResviaLogo } from '@/components/ResviaLogo';
 
 const navItems = [
-  { path: '/dashboard', label: 'Panel', icon: LayoutDashboard },
   { path: '/calendar', label: 'Calendario', icon: Calendar },
+  { path: '/dashboard', label: 'Panel', icon: LayoutDashboard },
   { path: '/services', label: 'Servicios', icon: Scissors },
   { path: '/customers', label: 'Clientes', icon: Users },
   { path: '/booking-link', label: 'Link de Reserva', icon: Link2 },

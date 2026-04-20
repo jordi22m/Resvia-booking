@@ -21,6 +21,7 @@ import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import Index from "@/pages/Index";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -49,7 +50,7 @@ const App = () => (
             <Route path="/booking/reschedule/:token" element={<BookingReschedulePage />} />
 
             {/* Protected routes */}
-            <Route path="/" element={<LoginPage />} />
+            <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<ProtectedApp><Dashboard /></ProtectedApp>} />
             <Route path="/calendar" element={<ProtectedApp><CalendarPage /></ProtectedApp>} />
             <Route path="/services" element={<ProtectedApp><ServicesPage /></ProtectedApp>} />

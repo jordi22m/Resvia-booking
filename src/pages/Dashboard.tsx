@@ -127,7 +127,7 @@ export default function Dashboard() {
                         <p className="text-sm font-medium text-foreground">{customer?.name || 'Cliente'}</p>
                         <p className="text-xs text-muted-foreground">{service?.name} · {member?.name}</p>
                       </div>
-                      <Badge variant={sc.variant}>{sc.label}</Badge>
+                      <Badge variant={sc.variant} translate="no">{sc.label}</Badge>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" onClick={() => { setSelectedAppointment(apt); setDetailsOpen(true); }} translate="no">
@@ -178,7 +178,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Estado</p>
-                  <p className="text-sm font-medium text-foreground">{statusConfig[selectedAppointment.status]?.label || selectedAppointment.status}</p>
+                  <p className="text-sm font-medium text-foreground" translate="no">{statusConfig[selectedAppointment.status]?.label || selectedAppointment.status}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
