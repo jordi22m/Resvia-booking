@@ -6,16 +6,19 @@ import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase
 type RawService = Tables<'services'> & {
   duration?: number | null;
   duration_minutes?: number | null;
+  interval_minutes?: number | null;
 };
 
 type RawServiceInsert = TablesInsert<'services'> & {
   duration?: number | null;
   duration_minutes?: number | null;
+  interval_minutes?: number | null;
 };
 
 type RawServiceUpdate = TablesUpdate<'services'> & {
   duration?: number | null;
   duration_minutes?: number | null;
+  interval_minutes?: number | null;
 };
 
 export type Service = Omit<RawService, 'duration'> & {

@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useServices, useCreateService, useUpdateService, useDeleteService, type Service } from '@/hooks/use-services';
 import { useToast } from '@/hooks/use-toast';
 
-const defaultService = { name: '', duration: 30, price: 0, description: '', category: 'General', color: '#94a3b8', bookable_online: true, requires_staff: true, buffer_before: 0, buffer_after: 0 };
+const defaultService = { name: '', duration: 30, interval_minutes: null as number | null, price: 0, description: '', category: 'General', color: '#94a3b8', bookable_online: true, requires_staff: true, buffer_before: 0, buffer_after: 0 };
 
 export default function ServicesPage() {
   const { data: services, isLoading } = useServices();
@@ -28,7 +28,7 @@ export default function ServicesPage() {
   const openCreate = () => { setEditing(null); setForm(defaultService); setDialogOpen(true); };
   const openEdit = (s: Service) => {
     setEditing(s);
-    setForm({ name: s.name, duration: s.duration, price: Number(s.price), description: s.description || '', category: s.category || 'General', color: s.color || '#94a3b8', bookable_online: s.bookable_online ?? true, requires_staff: s.requires_staff ?? true, buffer_before: s.buffer_before || 0, buffer_after: s.buffer_after || 0 });
+    setForm({ name: s.name, duration: s.duration, interval_minutes: s.interval_minutes ?? null, price: Number(s.price), description: s.description || '', category: s.category || 'General', color: s.color || '#94a3b8', bookable_online: s.bookable_online ?? true, requires_staff: s.requires_staff ?? true, buffer_before: s.buffer_before || 0, buffer_after: s.buffer_after || 0 });
     setDialogOpen(true);
   };
 
@@ -92,6 +92,9 @@ export default function ServicesPage() {
                     <span className="flex items-center gap-1 text-muted-foreground">
                       <Clock className="h-3.5 w-3.5" /> {service.duration} min
                     </span>
+                    {service.interval_minutes ? (
+                      <span className="text-xs text-muted-foreground">cada {service.interval_minutes} min</span>
+                    ) : null}
                     <span className="flex items-center gap-1 font-medium text-foreground">
                       <DollarSign className="h-3.5 w-3.5" /> {Number(service.price) > 0 ? `€${service.price}` : 'Gratis'}
                     </span>
@@ -131,9 +134,23 @@ export default function ServicesPage() {
                 <Input type="number" value={form.duration} onChange={e => setForm(p => ({ ...p, duration: +e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Precio (€)</Label>
-                <Input type="number" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: +e.target.value }))} />
+                <Label>Intervalo de inicio (min)</Label>
+                <Input
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={form.interval_minutes ?? ''}
+                  placeholder="Usar configuración del negocio"
+                  onChange={e => {
+                    const rawValue = e.target.value.trim();
+                    setForm(p => ({ ...p, interval_minutes: rawValue ? Number(rawValue) : null }));
+                  }}
+                />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Precio (€)</Label>
+              <Input type="number" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: +e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Categoría</Label>

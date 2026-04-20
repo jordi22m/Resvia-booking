@@ -164,8 +164,10 @@ export default function BookingPage() {
     bufferMinutes: profile?.buffer_minutes ?? 0,
     minNoticeMinutes: profile?.min_notice_minutes ?? 0,
     maxDaysAhead: profile?.max_days_ahead ?? 60,
+    minGapMinutes: profile?.min_gap_minutes ?? 0,
+    serviceIntervalMinutes: service?.interval_minutes ?? null,
     staffId: selectedStaff,
-  }), [profile, selectedStaff]);
+  }), [profile, service, selectedStaff]);
   const requirePhone = profile?.require_phone ?? true;
   const requireEmail = profile?.require_email ?? false;
 

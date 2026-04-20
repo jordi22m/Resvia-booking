@@ -27,6 +27,7 @@ type ProfileSettingsForm = {
   allow_weekends: boolean;
   slot_minutes: number;
   buffer_minutes: number;
+  min_gap_minutes: number;
   min_notice_minutes: number;
   max_days_ahead: number;
   timezone: string;
@@ -58,6 +59,7 @@ export default function SettingsPage() {
     allow_weekends: false,
     slot_minutes: 30,
     buffer_minutes: 0,
+    min_gap_minutes: 0,
     min_notice_minutes: 0,
     max_days_ahead: 60,
     timezone: 'Europe/Madrid',
@@ -107,6 +109,7 @@ export default function SettingsPage() {
         allow_weekends: profile.allow_weekends ?? false,
         slot_minutes: profile.slot_minutes ?? 30,
         buffer_minutes: profile.buffer_minutes ?? 0,
+        min_gap_minutes: profile.min_gap_minutes ?? 0,
         min_notice_minutes: profile.min_notice_minutes ?? 0,
         max_days_ahead: profile.max_days_ahead ?? 60,
         timezone: profile.timezone || 'Europe/Madrid',
@@ -143,6 +146,7 @@ export default function SettingsPage() {
         allow_weekends: form.allow_weekends,
         slot_minutes: form.slot_minutes,
         buffer_minutes: form.buffer_minutes,
+        min_gap_minutes: form.min_gap_minutes,
         min_notice_minutes: form.min_notice_minutes,
         max_days_ahead: form.max_days_ahead,
         timezone: form.timezone,
@@ -252,6 +256,17 @@ export default function SettingsPage() {
                 step={5}
                 value={form.buffer_minutes}
                 onChange={e => setForm(p => ({ ...p, buffer_minutes: Number(e.target.value) || 0 }))}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label>Hueco mínimo entre citas (min)</Label>
+              <Input
+                type="number"
+                min={0}
+                step={5}
+                value={form.min_gap_minutes}
+                onChange={e => setForm(p => ({ ...p, min_gap_minutes: Number(e.target.value) || 0 }))}
                 className="mt-1.5"
               />
             </div>

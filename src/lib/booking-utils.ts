@@ -33,6 +33,7 @@ export interface BookingRules {
 export interface SlotQueryOptions extends BookingRules {
   staffId?: string | null;
   now?: Date;
+  serviceIntervalMinutes?: number | null;
 }
 
 const DEFAULT_RULES: Required<Omit<BookingRules, 'timezone'>> = {
@@ -290,6 +291,7 @@ export function generateTimeSlots(
   }
 
   const rules = normalizeRules(options);
+  const interval = Math.max(5, options?.serviceIntervalMinutes || rules.slotMinutes);
   const dayOfWeek = getDay(selectedDate);
   const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
   if (dayAvailabilities.length === 0) {
@@ -327,7 +329,7 @@ export function generateTimeSlots(
         }
         seenTimes.add(timeString);
       }
-      currentTime = addMinutes(currentTime, rules.slotMinutes);
+      currentTime = addMinutes(currentTime, interval);
     }
   }
 

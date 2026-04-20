@@ -170,4 +170,36 @@ describe('booking-utils', () => {
 
     expect(bestSlots).toHaveLength(5);
   });
+
+  it('permite configurar intervalo por servicio y evita overflow al cierre', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+
+    const slotsEveryHour = generateTimeSlots(
+      [baseAvailability],
+      [],
+      selectedDate,
+      60,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+        serviceIntervalMinutes: 60,
+      }
+    );
+
+    const slotsEveryThirty = generateTimeSlots(
+      [baseAvailability],
+      [],
+      selectedDate,
+      30,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+        serviceIntervalMinutes: 30,
+      }
+    );
+
+    expect(slotsEveryHour.map((slot) => slot.time)).toEqual(['09:00', '10:00', '11:00']);
+    expect(slotsEveryThirty.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30']);
+    expect(slotsEveryHour.map((slot) => slot.time)).not.toContain('11:30');
+  });
 });
