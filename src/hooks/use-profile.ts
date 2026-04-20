@@ -43,7 +43,6 @@ export function useProfileBySlug(slug: string | undefined) {
   return useQuery({
     queryKey: ['profile', 'slug', slug],
     queryFn: async () => {
-      console.log('🔍 [START] Fetching profile by slug:', slug);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -51,15 +50,13 @@ export function useProfileBySlug(slug: string | undefined) {
         .maybeSingle();
 
       if (error) {
-        console.error('❌ [ERROR] Error fetching profile by slug:', error);
         throw error;
       }
 
-      console.log('✅ [SUCCESS] Profile fetch completed:', data ? `Found profile ${data.id}` : 'No profile found (null)', data);
       return data as Profile | null;
     },
     enabled: !!slug,
-    retry: 1, // No reintentar si falla
+    retry: 1,
   });
 }
 
