@@ -12,6 +12,8 @@ import { useCustomers } from '@/hooks/use-customers';
 import { useServices } from '@/hooks/use-services';
 import { useStaff } from '@/hooks/use-staff';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAvailabilityByUserId } from '@/hooks/use-availability';
 
 type ViewMode = 'day' | 'week';
 const HOURS = Array.from({ length: 13 }, (_, i) => i + 8);
@@ -22,12 +24,26 @@ export default function CalendarPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
+  const { user } = useAuth();
   const { data: appointments, isLoading } = useAppointments();
   const { data: customers } = useCustomers();
   const { data: services } = useServices();
   const { data: staff } = useStaff();
+  const { data: availability } = useAvailabilityByUserId(user?.id);
   const createAppointment = useCreateAppointment();
   useAppointmentsRealtime();
+
+  const isWorkingHour = (date: Date, hour: number): boolean => {
+    if (!availability?.length) return false;
+    const dayOfWeek = date.getDay();
+    return availability
+      .filter(a => a.day_of_week === dayOfWeek)
+      .some(slot => {
+        const startH = parseInt(slot.start_time.split(':')[0], 10);
+        const endH = parseInt(slot.end_time.split(':')[0], 10);
+        return hour >= startH && hour < endH;
+      });
+  };
 
   const [newApt, setNewApt] = useState({ customer_id: '', service_id: '', staff_id: '', date: format(new Date(), 'yyyy-MM-dd'), start_time: '09:00', notes: '' });
 
@@ -168,7 +184,13 @@ export default function CalendarPage() {
                 </div>
                 <div className="relative">
                   {HOURS.map(hour => (
-                    <div key={hour} className="h-16 border-b border-border hover:bg-secondary/30 transition-colors" />
+                    <div
+                      key={hour}
+                      className={cn(
+                        "h-16 border-b border-border hover:bg-secondary/30 transition-colors",
+                        isWorkingHour(day, hour) && "bg-primary/5"
+                      )}
+                    />
                   ))}
                   {getAppointmentLayout(dayAppointments).map(apt => {
                     const [startH, startM] = (apt.start_time || '09:00').split(':').map(Number);
