@@ -2,10 +2,6 @@ import { addMinutes, format, getDay, isBefore, isSameDay, startOfDay } from 'dat
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
 
-console.log("DATE:", selectedDate);
-console.log("AVAILABILITY:", availability);
-console.log("APPOINTMENTS:", appointments);
-
 export interface TimeSlot {
   time: string;
   available: boolean;
@@ -63,8 +59,8 @@ function isSameStaff(staffA: string | null | undefined, staffB: string | null | 
 
 function hasSplitWindowShape(slot: Availability): boolean {
   return Boolean(
-    slot.morning_active !== undefined ||
-    slot.afternoon_active !== undefined ||
+    slot.morning_active === true ||
+    slot.afternoon_active === true ||
     slot.morning_start_time ||
     slot.morning_end_time ||
     slot.afternoon_start_time ||
@@ -109,7 +105,10 @@ function getDayAvailabilities(
 
   return availability
     .filter((slot) => slot.day_of_week === isoDay)
-    .filter((slot) => !slot.staff_id || isSameStaff(slot.staff_id, staffId))
+    .filter((slot) => {
+      if (!staffId) return true;
+      return !slot.staff_id || isSameStaff(slot.staff_id, staffId);
+    })
     .flatMap((slot) => expandAvailabilityToWindows(slot))
     .filter((slot) => Boolean(slot.start_time && slot.end_time))
     .filter((slot) => toMinutes(slot.end_time) > toMinutes(slot.start_time))
@@ -121,7 +120,7 @@ function getAppointmentEndMinutes(appointment: Appointment): number {
   if (appointment.end_time) {
     return toMinutes(appointment.end_time);
   }
-  return start + (appointment.service?.duration || 30);
+  return start + 30;
 }
 
 function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): boolean {
@@ -143,7 +142,10 @@ function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): bool
 
   const diffMs = dayStart.getTime() - nowDayStart.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
- return true;
+  if (diffDays > rules.maxDaysAhead) {
+    return false;
+  }
+  return true;
 }
 
 export function generateTimeSlots(
@@ -160,7 +162,6 @@ export function generateTimeSlots(
   const rules = normalizeRules(options);
   const dayOfWeek = getDay(selectedDate);
   const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
-  console.log("DAY AVAILABILITIES:", dayAvailabilities);
   if (dayAvailabilities.length === 0) {
     return [];
   }
@@ -263,11 +264,10 @@ export function isTimeSlotAvailable(
 
   const dateStr = format(date, 'yyyy-MM-dd');
 
-  return !appointments.some(appointment => {
+  return !appointments.some((appointment) => {
     if (
       appointment.date !== dateStr ||
       (options?.staffId !== undefined && !isSameStaff(appointment.staff_id, options.staffId)) ||
-      appointment.status === 'cancelled' ||
       appointment.status === 'canceled'
     ) {
       return false;

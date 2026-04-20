@@ -137,10 +137,10 @@ async function handleBookingSubmit({
 
 export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { data: profile, isLoading: loadingProfile } = useProfileBySlug(slug);
-  const { data: services, isLoading: loadingServices } = useServicesByUserId(profile?.user_id);
+  const { data: profile, isLoading: loadingProfile, error: profileError } = useProfileBySlug(slug);
+  const { data: services, isLoading: loadingServices, error: servicesError } = useServicesByUserId(profile?.user_id);
   const { data: staff } = useStaffByUserId(profile?.user_id);
-  const { data: availability, isLoading: loadingAvailability } = useAvailabilityBySlug(slug);
+  const { data: availability, isLoading: loadingAvailability, error: availabilityError } = useAvailabilityBySlug(slug);
   const { toast } = useToast();
 
   const [step, setStep] = useState<Step>('service');
@@ -155,6 +155,8 @@ export default function BookingPage() {
 
   const service = services?.find((s: Service) => s.id === selectedService);
   const staffMember = staff?.find((s: StaffMember) => s.id === selectedStaff);
+  const hasBookableServices = (services?.length ?? 0) > 0;
+  const hasAvailabilityConfigured = (availability?.length ?? 0) > 0;
   const bookingRules = useMemo(() => ({
     allowWeekends: profile?.allow_weekends ?? true,
     slotMinutes: profile?.slot_minutes ?? 30,
@@ -167,13 +169,13 @@ export default function BookingPage() {
   const requireEmail = profile?.require_email ?? false;
 
   // Get appointments for selected date
-  const { data: dayAppointments, isLoading: loadingDayAppointments } = useAppointmentsBySlugAndDate(
+  const { data: dayAppointments, isLoading: loadingDayAppointments, error: dayAppointmentsError } = useAppointmentsBySlugAndDate(
     slug,
     selectedDate ? format(selectedDate, 'yyyy-MM-dd') : undefined
   );
 
   // Get appointments for current month (for calendar validation)
-  const { data: monthAppointments, isLoading: loadingMonthAppointments } = useAppointmentsBySlugAndDateRange(
+  const { data: monthAppointments, isLoading: loadingMonthAppointments, error: monthAppointmentsError } = useAppointmentsBySlugAndDateRange(
     slug,
     startOfMonth(currentMonth),
     endOfMonth(currentMonth)
@@ -227,6 +229,21 @@ export default function BookingPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const queryError = profileError || servicesError || availabilityError || dayAppointmentsError || monthAppointmentsError;
+  if (queryError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center space-y-3">
+            <h2 className="text-xl font-semibold text-foreground">Error al cargar reservas</h2>
+            <p className="text-sm text-muted-foreground">{queryError.message || 'No se pudo cargar la página de reservas. Por favor revisa la URL o inténtalo de nuevo más tarde.'}</p>
+            <Button variant="outline" onClick={() => window.location.reload()}>Recargar</Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -375,7 +392,12 @@ export default function BookingPage() {
                     "cursor-pointer transition-all hover:shadow-md",
                     selectedService === svc.id ? 'ring-2 ring-primary shadow-md' : ''
                   )}
-                  onClick={() => setSelectedService(svc.id)}
+                  onClick={() => {
+                    setSelectedService(svc.id);
+                    setSelectedDate(null);
+                    setSelectedTime(null);
+                    setCurrentMonth(new Date());
+                  }}
                 >
                   <CardContent className="p-6">
                     <div className="flex items-start gap-4">
@@ -404,10 +426,26 @@ export default function BookingPage() {
               ))}
             </div>
 
+            {!hasBookableServices ? (
+              <Card className="max-w-md mx-auto border-dashed">
+                <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                  No hay servicios disponibles para reservar ahora mismo.
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {hasBookableServices && !hasAvailabilityConfigured ? (
+              <Card className="max-w-md mx-auto border-dashed">
+                <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                  Todavia no hay disponibilidad configurada para mostrar fechas y horas.
+                </CardContent>
+              </Card>
+            ) : null}
+
             <div className="flex justify-center">
               <Button
                 size="lg"
-                disabled={!selectedService}
+                disabled={!selectedService || !hasBookableServices || !hasAvailabilityConfigured}
                 onClick={() => setStep('calendar')}
                 className="px-8"
               >
@@ -511,6 +549,11 @@ export default function BookingPage() {
                 <p className="text-xs text-muted-foreground mt-3 text-center">
                   Los días habilitados muestran la cantidad de horarios libres.
                 </p>
+                {!loadingMonthAppointments && hasAvailabilityConfigured && service && monthDayAvailabilityMap.size > 0 && !calendarDays.some((date) => isDayAvailableForBooking(date)) ? (
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    No hay fechas disponibles para este servicio en el mes seleccionado.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
 

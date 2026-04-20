@@ -1,0 +1,96 @@
+import { addDays } from 'date-fns';
+import { describe, expect, it } from 'vitest';
+import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable } from '@/lib/booking-utils';
+import type { Availability } from '@/hooks/use-availability';
+import type { Appointment } from '@/hooks/use-appointments';
+
+const baseAvailability: Availability = {
+  id: 'availability-1',
+  user_id: 'user-1',
+  day_of_week: 1,
+  start_time: '09:00',
+  end_time: '12:00',
+  is_active: true,
+  staff_id: null,
+  created_at: '2026-04-20T00:00:00.000Z',
+  morning_active: null,
+  morning_start_time: null,
+  morning_end_time: null,
+  afternoon_active: null,
+  afternoon_start_time: null,
+  afternoon_end_time: null,
+};
+
+const baseAppointment: Appointment = {
+  id: 'appointment-1',
+  user_id: 'user-1',
+  customer_id: 'customer-1',
+  service_id: 'service-1',
+  staff_id: null,
+  date: '2026-04-20',
+  start_time: '09:30',
+  end_time: '10:00',
+  status: 'confirmed',
+  notes: '',
+  created_at: '2026-04-20T00:00:00.000Z',
+  updated_at: '2026-04-20T00:00:00.000Z',
+};
+
+describe('booking-utils', () => {
+  it('genera horarios disponibles dentro de la ventana configurada', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+
+    const slots = generateTimeSlots(
+      [baseAvailability],
+      [],
+      selectedDate,
+      30,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+      }
+    );
+
+    expect(slots.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30']);
+  });
+
+  it('bloquea horarios ocupados y resume bien la disponibilidad diaria', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+
+    const summary = getDayAvailabilitySummary(
+      [baseAvailability],
+      [baseAppointment],
+      selectedDate,
+      30,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+      }
+    );
+
+    expect(isTimeSlotAvailable([baseAvailability], [baseAppointment], selectedDate, '09:30', 30, {
+      now: new Date(2026, 3, 19, 10, 0, 0),
+      slotMinutes: 30,
+    })).toBe(false);
+    expect(summary.isAvailable).toBe(true);
+    expect(summary.availableSlots).toBe(5);
+  });
+
+  it('respeta el limite maximo de dias por adelantado', () => {
+    const now = new Date(2026, 3, 20, 10, 0, 0);
+    const blockedDate = addDays(now, 8);
+
+    const slots = generateTimeSlots(
+      [baseAvailability],
+      [],
+      blockedDate,
+      30,
+      {
+        now,
+        maxDaysAhead: 7,
+      }
+    );
+
+    expect(slots).toEqual([]);
+  });
+});
