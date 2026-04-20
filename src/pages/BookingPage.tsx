@@ -6,6 +6,7 @@ import { Calendar, ChevronLeft, Check, Clock, MapPin, Loader2, ChevronRight } fr
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -33,11 +34,125 @@ type BookingConfirmationData = {
 };
 
 const WEEKDAY_ES = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const WEEKDAY_SHORT_ES = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
 
 function formatBookingDateEs(date: Date): string {
   const weekday = WEEKDAY_ES[date.getDay()];
   const dayAndMonth = format(date, "d 'de' MMMM", { locale: es });
   return `${weekday}, ${dayAndMonth}`;
+}
+
+function TimeSlotsSkeleton({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={cn('grid gap-3', compact ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4')}>
+      {Array.from({ length: compact ? 4 : 8 }, (_, index) => (
+        <Skeleton
+          key={index}
+          className={cn(
+            'rounded-2xl',
+            compact ? 'h-16' : 'h-20'
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CalendarDayButton({
+  date,
+  isCurrentMonth,
+  isSelected,
+  isToday,
+  hasAvailability,
+  availableSlotsCount,
+  hoverLabel,
+  onSelect,
+}: {
+  date: Date;
+  isCurrentMonth: boolean;
+  isSelected: boolean | null;
+  isToday: boolean;
+  hasAvailability: boolean;
+  availableSlotsCount: number;
+  hoverLabel: string;
+  onSelect: (date: Date) => void;
+}) {
+  const isFullDay = isCurrentMonth && !hasAvailability;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">
+          <button
+            type="button"
+            onClick={() => {
+              if (!hasAvailability) return;
+              onSelect(date);
+            }}
+            disabled={!hasAvailability}
+            className={cn(
+              'group relative flex h-14 w-full min-w-[44px] flex-col items-center justify-center overflow-hidden rounded-2xl border text-sm font-semibold transition-all duration-200 ease-out',
+              'before:absolute before:inset-x-2 before:bottom-1 before:h-1 before:rounded-full before:transition-opacity',
+              !isCurrentMonth && 'opacity-30',
+              isSelected && 'scale-[1.03] border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20 before:bg-primary-foreground',
+              isToday && !isSelected && 'border-primary/40 ring-2 ring-primary/10',
+              hasAvailability && !isSelected && 'border-emerald-200 bg-gradient-to-b from-emerald-50 to-background text-emerald-950 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md hover:shadow-emerald-100 before:bg-emerald-400',
+              isFullDay && 'border-border/40 bg-muted/70 text-muted-foreground cursor-not-allowed before:bg-muted-foreground/30',
+              !isCurrentMonth && !isSelected && 'border-transparent bg-transparent text-muted-foreground/40 before:hidden'
+            )}
+          >
+            <span className="relative z-10 leading-none">{format(date, 'd')}</span>
+            <span className="relative z-10 mt-1 text-[10px] font-medium opacity-75">
+              {hasAvailability ? `${availableSlotsCount} slots` : 'sin huecos'}
+            </span>
+            {hasAvailability ? (
+              <span
+                className={cn(
+                  'absolute right-2 top-2 h-2.5 w-2.5 rounded-full',
+                  isSelected ? 'bg-primary-foreground' : 'bg-emerald-500'
+                )}
+              />
+            ) : null}
+          </button>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{hoverLabel}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function TimeSlotButton({
+  slot,
+  isSelected,
+  onSelect,
+}: {
+  slot: { time: string };
+  isSelected: boolean;
+  onSelect: (time: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(slot.time)}
+      className={cn(
+        'group rounded-2xl border px-4 py-4 text-left transition-all duration-200 ease-out',
+        'min-h-[76px] focus:outline-none focus:ring-2 focus:ring-primary/20',
+        isSelected
+          ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20'
+          : 'border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md'
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-lg font-semibold tracking-tight">{slot.time}</span>
+        {isSelected ? <Check className="h-4 w-4 shrink-0" /> : <Clock className="h-4 w-4 shrink-0 opacity-50 group-hover:opacity-80" />}
+      </div>
+      <p className={cn('mt-1 text-xs', isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+        Disponible para reservar
+      </p>
+    </button>
+  );
 }
 
 async function handleBookingSubmit({
@@ -153,6 +268,7 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmationData, setConfirmationData] = useState<BookingConfirmationData | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [monthDirection, setMonthDirection] = useState<'next' | 'prev'>('next');
 
   const service = services?.find((s: Service) => s.id === selectedService);
   const staffMember = staff?.find((s: StaffMember) => s.id === selectedStaff);
@@ -239,6 +355,18 @@ export default function BookingPage() {
     }
 
     return 'Sin huecos disponibles';
+  };
+
+  const selectedDateLabel = useMemo(() => {
+    if (!selectedDate) return null;
+    return `${formatBookingDateEs(selectedDate)} ${format(selectedDate, 'yyyy')}`;
+  }, [selectedDate]);
+
+  const previewTimeSlots = useMemo(() => availableTimeSlots.slice(0, 6), [availableTimeSlots]);
+
+  const changeMonth = (direction: 'next' | 'prev') => {
+    setMonthDirection(direction);
+    setCurrentMonth((prev) => (direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)));
   };
 
   // Etapa 1: Cargando perfil
@@ -481,44 +609,56 @@ export default function BookingPage() {
             </div>
 
             {/* Calendar */}
-            <Card className="max-w-md mx-auto">
-              <CardHeader className="pb-4">
+            <Card className="mx-auto w-full max-w-2xl overflow-hidden border-border/70 shadow-sm">
+              <CardHeader className="border-b border-border/60 bg-gradient-to-b from-card to-secondary/20 pb-4">
                 <div className="flex items-center justify-between">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                    onClick={() => changeMonth('prev')}
+                    className="rounded-full"
+                    aria-label="Mes anterior"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <CardTitle className="text-lg">
+                  <CardTitle className="text-lg capitalize">
                     {format(currentMonth, "MMMM yyyy", { locale: es })}
                   </CardTitle>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                    onClick={() => changeMonth('next')}
+                    className="rounded-full"
+                    aria-label="Mes siguiente"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-5">
                 {/* Days of week */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
-                    <div key={day} className="h-8 flex items-center justify-center text-xs font-medium text-muted-foreground" translate="no">
+                <div className="mb-3 grid grid-cols-7 gap-2">
+                  {WEEKDAY_SHORT_ES.map(day => (
+                    <div key={day} className="flex h-8 items-center justify-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground" translate="no">
                       {day}
                     </div>
                   ))}
                 </div>
 
                 {/* Calendar days */}
-                <div className="grid grid-cols-7 gap-1">
+                <div
+                  key={format(currentMonth, 'yyyy-MM')}
+                  className={cn(
+                    'grid grid-cols-7 gap-2',
+                    'animate-in fade-in-0 duration-300',
+                    monthDirection === 'next' ? 'slide-in-from-right-3' : 'slide-in-from-left-3'
+                  )}
+                >
                   {loadingMonthAppointments ? (
-                    <div className="col-span-7 flex items-center justify-center py-3 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Cargando disponibilidad...
+                    <div className="col-span-7 grid grid-cols-7 gap-2 py-1">
+                      {Array.from({ length: 14 }, (_, index) => (
+                        <Skeleton key={index} className="h-14 rounded-2xl" />
+                      ))}
                     </div>
                   ) : null}
                   {calendarDays.map(date => {
@@ -527,52 +667,26 @@ export default function BookingPage() {
                     const isToday = isSameDay(date, new Date());
                     const hasAvailability = isDayAvailableForBooking(date);
                     const availableSlotsCount = getDaySlotCount(date);
-                    const isFullDay = isCurrentMonth && !hasAvailability;
 
                     return (
-                      <Tooltip key={date.toISOString()}>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!hasAvailability) return;
-                                setSelectedDate(date);
-                                setSelectedTime(null);
-                              }}
-                              disabled={!hasAvailability}
-                              className={cn(
-                                "h-11 w-11 rounded-xl text-sm font-medium transition-all relative flex items-center justify-center border",
-                                !isCurrentMonth && "opacity-35",
-                                isSelected && "bg-primary text-primary-foreground border-primary shadow-sm",
-                                isToday && !isSelected && "border-primary/50 ring-1 ring-primary/20",
-                                hasAvailability && !isSelected && "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-300 hover:bg-emerald-100",
-                                isFullDay && "bg-muted text-muted-foreground border-muted-foreground/10 cursor-not-allowed",
-                                !isCurrentMonth && !isSelected && "bg-transparent text-muted-foreground/40 border-transparent"
-                              )}
-                            >
-                              <span>{format(date, 'd')}</span>
-                              <span
-                                className={cn(
-                                  "absolute -bottom-1 right-0 text-[9px] min-w-4 px-1 rounded-full border leading-3 text-center",
-                                  hasAvailability && isSelected && "bg-primary-foreground text-primary border-primary-foreground/40",
-                                  hasAvailability && !isSelected && "bg-emerald-100 text-emerald-900 border-emerald-200",
-                                  !hasAvailability && "bg-muted-foreground/10 text-muted-foreground border-transparent"
-                                )}
-                              >
-                                {availableSlotsCount}
-                              </span>
-                            </button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{getDayHoverLabel(date)}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <CalendarDayButton
+                        key={date.toISOString()}
+                        date={date}
+                        isCurrentMonth={isCurrentMonth}
+                        isSelected={isSelected}
+                        isToday={isToday}
+                        hasAvailability={hasAvailability}
+                        availableSlotsCount={availableSlotsCount}
+                        hoverLabel={getDayHoverLabel(date)}
+                        onSelect={(nextDate) => {
+                          setSelectedDate(nextDate);
+                          setSelectedTime(null);
+                        }}
+                      />
                     );
                   })}
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
                     Días con disponibilidad
@@ -590,6 +704,49 @@ export default function BookingPage() {
                 ) : null}
               </CardContent>
             </Card>
+
+            {selectedDate ? (
+              <Card className="mx-auto w-full max-w-2xl border-border/70 bg-card/90 shadow-sm animate-in fade-in-0 slide-in-from-bottom-3 duration-300">
+                <CardContent className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Disponibilidad rápida</p>
+                      <h3 className="mt-1 text-lg font-semibold text-foreground">{selectedDateLabel}</h3>
+                    </div>
+                    {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                      <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
+                        Quedan {availableTimeSlots.length} horarios
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4">
+                    {loadingDayAppointments ? <TimeSlotsSkeleton compact /> : null}
+
+                    {!loadingDayAppointments && availableTimeSlots.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/30 px-4 py-8 text-center animate-in fade-in-0 duration-200">
+                        <Clock className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                        <p className="font-medium text-foreground">No hay disponibilidad este día</p>
+                        <p className="mt-1 text-sm text-muted-foreground">Prueba con otra fecha del calendario.</p>
+                      </div>
+                    ) : null}
+
+                    {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
+                        {previewTimeSlots.map((slot) => (
+                          <TimeSlotButton
+                            key={slot.time}
+                            slot={slot}
+                            isSelected={selectedTime === slot.time}
+                            onSelect={(time) => setSelectedTime(time)}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
 
             <div className="flex justify-center gap-4">
               <Button variant="outline" onClick={() => setStep('service')}>
@@ -618,46 +775,61 @@ export default function BookingPage() {
               </p>
             </div>
 
-            <Card className="max-w-md mx-auto">
-              <CardContent className="p-6">
-                {loadingDayAppointments ? (
-                  <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Cargando horarios...
+            <Card className="mx-auto w-full max-w-3xl border-border/70 shadow-sm overflow-hidden">
+              <CardContent className="p-5 sm:p-6">
+                <div className="mb-5 flex flex-col gap-3 rounded-2xl bg-secondary/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Horarios disponibles</p>
+                    <p className="mt-1 text-sm text-foreground">Selecciona la hora que mejor te encaje.</p>
                   </div>
-                ) : null}
-                <div className="grid grid-cols-3 gap-3">
-                  {availableTimeSlots.map(slot => (
-                    <button
-                      key={slot.time}
-                      onClick={() => {
-                        setSelectedTime(slot.time);
-                        toast({
-                          title: 'Horario seleccionado',
-                          description: `${slot.time} (${service?.duration || 30} min)`
-                        });
-                      }}
-                      className={cn(
-                        "py-3 px-4 rounded-lg text-sm font-medium transition-all",
-                        selectedTime === slot.time
-                          ? 'bg-primary text-primary-foreground'
-                          : 'border border-border hover:border-primary hover:bg-accent'
-                      )}
-                    >
-                      {slot.time}
-                    </button>
-                  ))}
+                  {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                    <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
+                      Quedan {availableTimeSlots.length} citas posibles
+                    </div>
+                  ) : null}
                 </div>
 
-                {availableTimeSlots.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No hay horarios disponibles para esta fecha</p>
+                {loadingDayAppointments ? (
+                  <div className="space-y-4 animate-in fade-in-0 duration-200">
+                    <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cargando horarios...
+                    </div>
+                    <TimeSlotsSkeleton />
                   </div>
                 ) : null}
 
-                {availableTimeSlots.length > 0 ? (
-                  <p className="text-xs text-muted-foreground mt-4 text-center">
+                {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                  <div className="max-h-[420px] overflow-y-auto pr-1 scroll-smooth">
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
+                      {availableTimeSlots.map(slot => (
+                        <TimeSlotButton
+                          key={slot.time}
+                          slot={slot}
+                          isSelected={selectedTime === slot.time}
+                          onSelect={(time) => {
+                            setSelectedTime(time);
+                            toast({
+                              title: 'Horario seleccionado',
+                              description: `${time} (${service?.duration || 30} min)`
+                            });
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!loadingDayAppointments && availableTimeSlots.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/20 px-4 py-10 text-center animate-in fade-in-0 duration-200">
+                    <Clock className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                    <p className="font-medium text-foreground">No hay disponibilidad este día</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Cambia de fecha para ver otros horarios libres.</p>
+                  </div>
+                ) : null}
+
+                {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                  <p className="mt-4 text-center text-xs text-muted-foreground">
                     {availableTimeSlots.length} horarios disponibles
                   </p>
                 ) : null}
