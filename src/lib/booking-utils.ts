@@ -104,7 +104,7 @@ function getDayAvailabilities(
   const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
   return availability
-    .filter((slot) => slot.day_of_week === isoDay && slot.is_active)
+    .filter((slot) => slot.day_of_week === isoDay)
     .filter((slot) => !slot.staff_id || isSameStaff(slot.staff_id, staffId))
     .flatMap((slot) => expandAvailabilityToWindows(slot))
     .filter((slot) => Boolean(slot.start_time && slot.end_time))
