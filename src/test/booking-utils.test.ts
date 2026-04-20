@@ -1,6 +1,6 @@
 import { addDays } from 'date-fns';
 import { describe, expect, it } from 'vitest';
-import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable } from '@/lib/booking-utils';
+import { generateTimeSlots, getBestAvailableSlots, getDayAvailabilitySummary, isTimeSlotAvailable } from '@/lib/booking-utils';
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
 
@@ -116,5 +116,58 @@ describe('booking-utils', () => {
 
     expect(slots.length).toBeGreaterThan(0);
     expect(slots[0]?.time).toBe('09:00');
+  });
+
+  it('prioriza slots que encajan mejor en la agenda', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+    const appointments: Appointment[] = [
+      {
+        ...baseAppointment,
+        id: 'appointment-early',
+        start_time: '09:00',
+        end_time: '09:30',
+      },
+      {
+        ...baseAppointment,
+        id: 'appointment-late',
+        start_time: '11:00',
+        end_time: '11:30',
+      },
+    ];
+
+    const bestSlots = getBestAvailableSlots(
+      [baseAvailability],
+      appointments,
+      selectedDate,
+      30,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+      }
+    );
+
+    expect(bestSlots).toEqual(['11:30', '10:00', '09:30', '10:30']);
+  });
+
+  it('devuelve un maximo de cinco sugerencias para WhatsApp', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+
+    const bestSlots = getBestAvailableSlots(
+      [
+        {
+          ...baseAvailability,
+          end_time: '13:00',
+        },
+      ],
+      [],
+      selectedDate,
+      30,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+      }
+    );
+
+    expect(bestSlots).toHaveLength(5);
   });
 });

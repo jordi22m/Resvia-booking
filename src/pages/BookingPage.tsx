@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useProfileBySlug } from '@/hooks/use-profile';
 import type { Profile } from '@/hooks/use-profile';
@@ -222,6 +223,20 @@ export default function BookingPage() {
   const getDaySlotCount = (date: Date) => {
     const key = format(date, 'yyyy-MM-dd');
     return monthDayAvailabilityMap.get(key)?.availableSlots ?? 0;
+  };
+
+  const getDayHoverLabel = (date: Date) => {
+    const availableSlotsCount = getDaySlotCount(date);
+
+    if (availableSlotsCount > 0) {
+      return `${availableSlotsCount} huecos disponibles`;
+    }
+
+    if (!isSameMonth(date, currentMonth)) {
+      return 'Fuera del mes actual';
+    }
+
+    return 'Sin huecos disponibles';
   };
 
   // Etapa 1: Cargando perfil
@@ -510,45 +525,62 @@ export default function BookingPage() {
                     const isToday = isSameDay(date, new Date());
                     const hasAvailability = isDayAvailableForBooking(date);
                     const availableSlotsCount = getDaySlotCount(date);
+                    const isFullDay = isCurrentMonth && !hasAvailability;
 
                     return (
-                      <button
-                        key={date.toISOString()}
-                        onClick={() => {
-                          if (!hasAvailability) return;
-                          setSelectedDate(date);
-                          setSelectedTime(null);
-                        }}
-                        disabled={!hasAvailability}
-                        className={cn(
-                          "h-11 w-11 rounded-xl text-sm font-medium transition-all relative flex items-center justify-center border",
-                          !isCurrentMonth && "opacity-35",
-                          isSelected && "bg-primary text-primary-foreground border-primary shadow-sm",
-                          isToday && !isSelected && "border-primary/40",
-                          hasAvailability && !isSelected && "border-border hover:border-primary/50 hover:bg-accent/70",
-                          !hasAvailability && "text-muted-foreground/40 border-transparent cursor-not-allowed"
-                        )}
-                      >
-                        <span>{format(date, 'd')}</span>
-                        {hasAvailability ? (
-                          <span
-                            className={cn(
-                              "absolute -bottom-1 right-0 text-[9px] min-w-4 px-1 rounded-full border leading-3 text-center",
-                              isSelected
-                                ? "bg-primary-foreground text-primary border-primary-foreground/40"
-                                : "bg-background text-foreground border-border/70"
-                            )}
-                          >
-                            {availableSlotsCount}
+                      <Tooltip key={date.toISOString()}>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!hasAvailability) return;
+                                setSelectedDate(date);
+                                setSelectedTime(null);
+                              }}
+                              disabled={!hasAvailability}
+                              className={cn(
+                                "h-11 w-11 rounded-xl text-sm font-medium transition-all relative flex items-center justify-center border",
+                                !isCurrentMonth && "opacity-35",
+                                isSelected && "bg-primary text-primary-foreground border-primary shadow-sm",
+                                isToday && !isSelected && "border-primary/50 ring-1 ring-primary/20",
+                                hasAvailability && !isSelected && "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-300 hover:bg-emerald-100",
+                                isFullDay && "bg-muted text-muted-foreground border-muted-foreground/10 cursor-not-allowed",
+                                !isCurrentMonth && !isSelected && "bg-transparent text-muted-foreground/40 border-transparent"
+                              )}
+                            >
+                              <span>{format(date, 'd')}</span>
+                              <span
+                                className={cn(
+                                  "absolute -bottom-1 right-0 text-[9px] min-w-4 px-1 rounded-full border leading-3 text-center",
+                                  hasAvailability && isSelected && "bg-primary-foreground text-primary border-primary-foreground/40",
+                                  hasAvailability && !isSelected && "bg-emerald-100 text-emerald-900 border-emerald-200",
+                                  !hasAvailability && "bg-muted-foreground/10 text-muted-foreground border-transparent"
+                                )}
+                              >
+                                {availableSlotsCount}
+                              </span>
+                            </button>
                           </span>
-                        ) : null}
-                      </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{getDayHoverLabel(date)}</p>
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-3 text-center">
-                  Los días habilitados muestran la cantidad de horarios libres.
-                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                    Días con disponibilidad
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
+                    Días completos
+                  </span>
+                  <span>El número indica los huecos disponibles</span>
+                </div>
                 {!loadingMonthAppointments && hasAvailabilityConfigured && service && monthDayAvailabilityMap.size > 0 && !calendarDays.some((date) => isDayAvailableForBooking(date)) ? (
                   <p className="text-xs text-muted-foreground mt-2 text-center">
                     No hay fechas disponibles para este servicio en el mes seleccionado.

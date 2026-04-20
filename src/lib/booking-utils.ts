@@ -14,6 +14,12 @@ export interface DayAvailabilitySummary {
   totalSlots: number;
 }
 
+interface SlotFitMetrics {
+  totalGap: number;
+  largestGap: number;
+  gapCount: number;
+}
+
 export interface BookingRules {
   allowWeekends?: boolean;
   slotMinutes?: number;
@@ -124,6 +130,82 @@ function getAppointmentEndMinutes(appointment: Appointment): number {
     return toMinutes(appointment.end_time);
   }
   return start + 30;
+}
+
+function getDayAppointments(
+  appointments: Appointment[],
+  date: Date,
+  staffId?: string | null
+): Appointment[] {
+  const dateStr = format(date, 'yyyy-MM-dd');
+
+  return appointments.filter((appointment) => {
+    if (
+      appointment.date !== dateStr ||
+      appointment.status === 'canceled' ||
+      (staffId !== undefined && !isSameStaff(appointment.staff_id, staffId))
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function getContainingWindow(
+  dayAvailabilities: Availability[],
+  startMinutes: number,
+  endMinutes: number
+): Availability | undefined {
+  return dayAvailabilities.find((window) => {
+    const windowStart = toMinutes(window.start_time);
+    const windowEnd = toMinutes(window.end_time);
+    return startMinutes >= windowStart && endMinutes <= windowEnd;
+  });
+}
+
+function getSlotFitMetrics(
+  dayAvailabilities: Availability[],
+  appointments: Appointment[],
+  startMinutes: number,
+  endMinutes: number
+): SlotFitMetrics {
+  const containingWindow = getContainingWindow(dayAvailabilities, startMinutes, endMinutes);
+  if (!containingWindow) {
+    return {
+      totalGap: Number.POSITIVE_INFINITY,
+      largestGap: Number.POSITIVE_INFINITY,
+      gapCount: Number.POSITIVE_INFINITY,
+    };
+  }
+
+  const windowStart = toMinutes(containingWindow.start_time);
+  const windowEnd = toMinutes(containingWindow.end_time);
+
+  const sortedAppointments = appointments
+    .map((appointment) => ({
+      start: toMinutes(appointment.start_time),
+      end: getAppointmentEndMinutes(appointment),
+    }))
+    .filter((appointment) => appointment.end > windowStart && appointment.start < windowEnd)
+    .sort((a, b) => a.start - b.start);
+
+  const previousAppointment = [...sortedAppointments]
+    .reverse()
+    .find((appointment) => appointment.end <= startMinutes);
+  const nextAppointment = sortedAppointments.find((appointment) => appointment.start >= endMinutes);
+
+  const leftBoundary = previousAppointment?.end ?? windowStart;
+  const rightBoundary = nextAppointment?.start ?? windowEnd;
+  const leftGap = Math.max(0, startMinutes - leftBoundary);
+  const rightGap = Math.max(0, rightBoundary - endMinutes);
+  const gaps = [leftGap, rightGap].filter((gap) => gap > 0);
+
+  return {
+    totalGap: gaps.reduce((sum, gap) => sum + gap, 0),
+    largestGap: gaps.length ? Math.max(...gaps) : 0,
+    gapCount: gaps.length,
+  };
 }
 
 function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): boolean {
@@ -252,6 +334,45 @@ export function generateTimeSlots(
   return slots.sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
 }
 
+export function getBestAvailableSlots(
+  availability: Availability[],
+  appointments: Appointment[],
+  date: Date,
+  serviceDuration: number = 30,
+  options?: SlotQueryOptions
+): string[] {
+  const dayOfWeek = getDay(date);
+  const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
+  const dayAppointments = getDayAppointments(appointments, date, options?.staffId);
+
+  return generateTimeSlots(availability, appointments, date, serviceDuration, options)
+    .map((slot) => {
+      const startMinutes = toMinutes(slot.time);
+      const endMinutes = startMinutes + serviceDuration;
+      const metrics = getSlotFitMetrics(dayAvailabilities, dayAppointments, startMinutes, endMinutes);
+
+      return {
+        time: slot.time,
+        startMinutes,
+        ...metrics,
+      };
+    })
+    .sort((a, b) => {
+      if (a.totalGap !== b.totalGap) {
+        return a.totalGap - b.totalGap;
+      }
+      if (a.largestGap !== b.largestGap) {
+        return a.largestGap - b.largestGap;
+      }
+      if (a.gapCount !== b.gapCount) {
+        return a.gapCount - b.gapCount;
+      }
+      return a.startMinutes - b.startMinutes;
+    })
+    .slice(0, 5)
+    .map((slot) => slot.time);
+}
+
 export function getAvailableDays(
   availability: Availability[],
   appointments: Appointment[],
@@ -315,16 +436,7 @@ export function isTimeSlotAvailable(
 
   const dateStr = format(date, 'yyyy-MM-dd');
 
-  const dayAppointments = appointments.filter((appointment) => {
-    if (
-      appointment.date !== dateStr ||
-      (options?.staffId !== undefined && !isSameStaff(appointment.staff_id, options.staffId)) ||
-      appointment.status === 'canceled'
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const dayAppointments = getDayAppointments(appointments, date, options?.staffId);
 
   // Comprobar colisión con citas existentes (incluyendo buffer)
   const hasCollision = dayAppointments.some((appointment) => {
