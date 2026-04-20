@@ -60,11 +60,7 @@ function isSameStaff(staffA: string | null | undefined, staffB: string | null | 
 function hasSplitWindowShape(slot: Availability): boolean {
   return Boolean(
     slot.morning_active === true ||
-    slot.afternoon_active === true ||
-    slot.morning_start_time ||
-    slot.morning_end_time ||
-    slot.afternoon_start_time ||
-    slot.afternoon_end_time
+    slot.afternoon_active === true
   );
 }
 
