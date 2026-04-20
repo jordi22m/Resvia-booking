@@ -1,1 +1,7 @@
 project_id = "uucqabcpsubodgldloqa"
+
+[api]
+enabled = true
+
+[db]
+port = 54321
