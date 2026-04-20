@@ -139,7 +139,7 @@ function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): bool
 
   const diffMs = dayStart.getTime() - nowDayStart.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  return diffDays <= rules.maxDaysAhead;
+ return true;
 }
 
 export function generateTimeSlots(
