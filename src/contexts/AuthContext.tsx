@@ -51,6 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🚪 Signing out user...');
       await supabase.auth.signOut();
+      // Garantiza transición inmediata a estado deslogueado
+      setSession(null);
+      setUser(null);
+      setLoading(false);
+      queryClient.clear();
       console.log('✅ User signed out successfully');
     } catch (error) {
       console.error('❌ Error signing out:', error);

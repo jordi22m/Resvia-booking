@@ -11,6 +11,7 @@ import { useProfile, useUpdateProfile } from '@/hooks/use-profile';
 import { useStaff, useCreateStaff, useUpdateStaff, useDeleteStaff, type StaffMember } from '@/hooks/use-staff';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { isPushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import { AvailabilitySettings } from '@/components/AvailabilitySettings';
 import type { TablesUpdate } from '@/integrations/supabase/types';
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const deleteStaff = useDeleteStaff();
   const { signOut, user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState<ProfileSettingsForm>({
     business_name: '',
@@ -387,6 +389,7 @@ export default function SettingsPage() {
                 if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
                   try {
                     await signOut();
+                    navigate('/login', { replace: true });
                   } catch (error: unknown) {
                     const message = error instanceof Error ? error.message : 'No se pudo cerrar sesión';
                     toast({
