@@ -99,8 +99,12 @@ function getDayAvailabilities(
   dayOfWeek: number,
   staffId?: string | null
 ): Availability[] {
+  // getDay() devuelve 0=Dom,1=Lun...6=Sab
+  // BD usa 1=Lun,2=Mar...6=Sab,7=Dom
+  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
   return availability
-    .filter((slot) => slot.day_of_week === dayOfWeek && slot.is_active)
+    .filter((slot) => slot.day_of_week === isoDay && slot.is_active)
     .filter((slot) => !slot.staff_id || isSameStaff(slot.staff_id, staffId))
     .flatMap((slot) => expandAvailabilityToWindows(slot))
     .filter((slot) => Boolean(slot.start_time && slot.end_time))
