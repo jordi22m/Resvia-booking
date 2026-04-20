@@ -93,4 +93,28 @@ describe('booking-utils', () => {
 
     expect(slots).toEqual([]);
   });
+
+  it('usa el mismo day_of_week que guarda la configuracion publica', () => {
+    const sundayAvailability: Availability = {
+      ...baseAvailability,
+      id: 'availability-sunday',
+      day_of_week: 0,
+    };
+
+    const sunday = new Date(2026, 3, 19, 9, 0, 0);
+
+    const slots = generateTimeSlots(
+      [sundayAvailability],
+      [],
+      sunday,
+      30,
+      {
+        now: new Date(2026, 3, 18, 10, 0, 0),
+        slotMinutes: 30,
+      }
+    );
+
+    expect(slots.length).toBeGreaterThan(0);
+    expect(slots[0]?.time).toBe('09:00');
+  });
 });

@@ -99,12 +99,8 @@ function getDayAvailabilities(
   dayOfWeek: number,
   staffId?: string | null
 ): Availability[] {
-  // getDay() devuelve 0=Dom,1=Lun...6=Sab
-  // BD usa 1=Lun,2=Mar...6=Sab,7=Dom
-  const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-
   return availability
-    .filter((slot) => slot.day_of_week === isoDay)
+    .filter((slot) => slot.day_of_week === dayOfWeek)
     .filter((slot) => {
       if (!staffId) return true;
       return !slot.staff_id || isSameStaff(slot.staff_id, staffId);
