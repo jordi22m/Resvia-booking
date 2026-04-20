@@ -1,25 +1,9 @@
-import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [hasUser, setHasUser] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!mounted) return;
-      setHasUser(Boolean(user));
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -29,7 +13,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     );
   }
 
-  if (!hasUser) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

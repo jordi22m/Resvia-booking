@@ -383,9 +383,18 @@ export default function SettingsPage() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 if (window.confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-                  signOut();
+                  try {
+                    await signOut();
+                  } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : 'No se pudo cerrar sesión';
+                    toast({
+                      title: 'Error al cerrar sesión',
+                      description: message,
+                      variant: 'destructive',
+                    });
+                  }
                 }
               }}
               translate="no"
