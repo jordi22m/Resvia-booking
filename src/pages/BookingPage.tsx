@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -103,7 +103,7 @@ function CalendarDayButton({
           >
             <span className="relative z-10 leading-none">{format(date, 'd')}</span>
             <span className="relative z-10 mt-1 text-[10px] font-medium opacity-75">
-              {hasAvailability ? `${availableSlotsCount} slots` : 'sin huecos'}
+              {hasAvailability ? `${availableSlotsCount} horarios` : 'sin huecos'}
             </span>
             {hasAvailability ? (
               <span
@@ -269,6 +269,7 @@ export default function BookingPage() {
   const [confirmationData, setConfirmationData] = useState<BookingConfirmationData | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [monthDirection, setMonthDirection] = useState<'next' | 'prev'>('next');
+  const timeSectionRef = useRef<HTMLDivElement | null>(null);
 
   const service = services?.find((s: Service) => s.id === selectedService);
   const staffMember = staff?.find((s: StaffMember) => s.id === selectedStaff);
@@ -363,11 +364,25 @@ export default function BookingPage() {
   }, [selectedDate]);
 
   const previewTimeSlots = useMemo(() => availableTimeSlots.slice(0, 6), [availableTimeSlots]);
+  const hasUrgency = !loadingDayAppointments && availableTimeSlots.length > 0 && availableTimeSlots.length <= 3;
 
   const changeMonth = (direction: 'next' | 'prev') => {
     setMonthDirection(direction);
     setCurrentMonth((prev) => (direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)));
   };
+
+  useEffect(() => {
+    if (!selectedDate || !timeSectionRef.current) return;
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      timeSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [selectedDate]);
 
   // Etapa 1: Cargando perfil
   if (loadingProfile) {
@@ -767,7 +782,7 @@ export default function BookingPage() {
 
         {/* Time Selection */}
         {step === 'time' ? (
-          <div className="space-y-6">
+          <div ref={timeSectionRef} className="space-y-6 animate-in fade-in-0 slide-in-from-bottom-3 duration-300">
             <div className="text-center">
               <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una hora</h2>
               <p className="text-muted-foreground">
@@ -784,10 +799,16 @@ export default function BookingPage() {
                   </div>
                   {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
                     <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
-                      Quedan {availableTimeSlots.length} citas posibles
+                      Quedan {availableTimeSlots.length} horarios
                     </div>
                   ) : null}
                 </div>
+
+                {hasUrgency ? (
+                  <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 animate-in fade-in-0 slide-in-from-top-2 duration-300">
+                    ¡Quedan pocas horas disponibles!
+                  </div>
+                ) : null}
 
                 {loadingDayAppointments ? (
                   <div className="space-y-4 animate-in fade-in-0 duration-200">
@@ -847,7 +868,7 @@ export default function BookingPage() {
                 onClick={() => setStep('details')}
                 className="px-8"
               >
-                Continuar
+                {selectedTime ? `Confirmar cita a las ${selectedTime}` : 'Selecciona una hora'}
               </Button>
             </div>
           </div>
