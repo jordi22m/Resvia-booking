@@ -71,20 +71,28 @@ function expandAvailabilityToWindows(slot: Availability): Availability[] {
 
   const windows: Availability[] = [];
 
-  if (slot.morning_active && slot.morning_start_time && slot.morning_end_time) {
-    windows.push({
-      ...slot,
-      start_time: slot.morning_start_time,
-      end_time: slot.morning_end_time,
-    });
+  if (slot.morning_active) {
+    const morning_start = slot.morning_start_time || slot.start_time;
+    const morning_end = slot.morning_end_time || slot.end_time;
+    if (morning_start && morning_end) {
+      windows.push({
+        ...slot,
+        start_time: morning_start,
+        end_time: morning_end,
+      });
+    }
   }
 
-  if (slot.afternoon_active && slot.afternoon_start_time && slot.afternoon_end_time) {
-    windows.push({
-      ...slot,
-      start_time: slot.afternoon_start_time,
-      end_time: slot.afternoon_end_time,
-    });
+  if (slot.afternoon_active) {
+    const afternoon_start = slot.afternoon_start_time || slot.start_time;
+    const afternoon_end = slot.afternoon_end_time || slot.end_time;
+    if (afternoon_start && afternoon_end) {
+      windows.push({
+        ...slot,
+        start_time: afternoon_start,
+        end_time: afternoon_end,
+      });
+    }
   }
 
   return windows;
