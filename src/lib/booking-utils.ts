@@ -2,6 +2,10 @@ import { addMinutes, format, getDay, isBefore, isSameDay, startOfDay } from 'dat
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
 
+console.log("DATE:", selectedDate);
+console.log("AVAILABILITY:", availability);
+console.log("APPOINTMENTS:", appointments);
+
 export interface TimeSlot {
   time: string;
   available: boolean;
@@ -156,6 +160,7 @@ export function generateTimeSlots(
   const rules = normalizeRules(options);
   const dayOfWeek = getDay(selectedDate);
   const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
+  console.log("DAY AVAILABILITIES:", dayAvailabilities);
   if (dayAvailabilities.length === 0) {
     return [];
   }
