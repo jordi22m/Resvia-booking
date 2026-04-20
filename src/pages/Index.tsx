@@ -9,7 +9,7 @@ const Index = () => {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        navigate('/dashboard', { replace: true });
+        navigate('/calendar', { replace: true });
       } else {
         navigate('/login', { replace: true });
       }

@@ -34,7 +34,7 @@ export default function LoginPage() {
         variant: 'destructive',
       });
     } else {
-      navigate('/dashboard');
+      navigate('/calendar');
     }
   };
 

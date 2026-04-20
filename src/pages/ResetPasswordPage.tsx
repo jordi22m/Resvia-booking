@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {
       toast({ title: 'Contraseña actualizada correctamente' });
-      navigate('/dashboard');
+      navigate('/calendar');
     }
   };
 

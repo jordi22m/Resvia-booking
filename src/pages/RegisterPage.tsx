@@ -133,7 +133,7 @@ export default function RegisterPage() {
       description: 'Revisa tu email para confirmar tu cuenta.',
     });
 
-    navigate('/dashboard');
+    navigate('/calendar');
   };
 
   return (
