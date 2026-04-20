@@ -20,6 +20,7 @@ export interface BookingRules {
   bufferMinutes?: number;
   minNoticeMinutes?: number;
   maxDaysAhead?: number;
+  minGapMinutes?: number;
   timezone?: string | null;
 }
 
@@ -34,6 +35,7 @@ const DEFAULT_RULES: Required<Omit<BookingRules, 'timezone'>> = {
   bufferMinutes: 0,
   minNoticeMinutes: 0,
   maxDaysAhead: 60,
+  minGapMinutes: 0,
 };
 
 const NO_STAFF_PLACEHOLDER = '00000000-0000-0000-0000-000000000000';
@@ -50,6 +52,7 @@ function normalizeRules(options?: SlotQueryOptions): Required<Omit<BookingRules,
     bufferMinutes: Math.max(0, options?.bufferMinutes ?? DEFAULT_RULES.bufferMinutes),
     minNoticeMinutes: Math.max(0, options?.minNoticeMinutes ?? DEFAULT_RULES.minNoticeMinutes),
     maxDaysAhead: Math.max(0, options?.maxDaysAhead ?? DEFAULT_RULES.maxDaysAhead),
+    minGapMinutes: Math.max(0, options?.minGapMinutes ?? DEFAULT_RULES.minGapMinutes),
   };
 }
 
@@ -146,6 +149,51 @@ function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): bool
     return false;
   }
   return true;
+}
+
+/**
+ * Simula la inserción de una nueva cita y comprueba si algún hueco libre
+ * resultante es mayor que 0 pero menor que minGap (hueco muerto no aprovechable).
+ * Los intervalos se expresan en minutos desde medianoche.
+ */
+export function createsBadGap(
+  appointments: Appointment[],
+  newStart: number,
+  newEnd: number,
+  minGap: number
+): boolean {
+  if (minGap <= 0) return false;
+
+  const intervals: [number, number][] = appointments
+    .filter((a) => a.status !== 'canceled' && a.start_time)
+    .map((a) => [toMinutes(a.start_time), getAppointmentEndMinutes(a)] as [number, number]);
+
+  // Añadir la cita propuesta
+  intervals.push([newStart, newEnd]);
+
+  // Ordenar por hora de inicio
+  intervals.sort((a, b) => a[0] - b[0]);
+
+  // Merge de intervalos solapados para evitar falsos positivos
+  const merged: [number, number][] = [];
+  for (const interval of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && interval[0] <= last[1]) {
+      last[1] = Math.max(last[1], interval[1]);
+    } else {
+      merged.push([...interval] as [number, number]);
+    }
+  }
+
+  // Comprobar huecos entre intervalos consecutivos
+  for (let i = 0; i < merged.length - 1; i++) {
+    const gap = merged[i + 1][0] - merged[i][1];
+    if (gap > 0 && gap < minGap) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function generateTimeSlots(
@@ -264,7 +312,7 @@ export function isTimeSlotAvailable(
 
   const dateStr = format(date, 'yyyy-MM-dd');
 
-  return !appointments.some((appointment) => {
+  const dayAppointments = appointments.filter((appointment) => {
     if (
       appointment.date !== dateStr ||
       (options?.staffId !== undefined && !isSameStaff(appointment.staff_id, options.staffId)) ||
@@ -272,12 +320,28 @@ export function isTimeSlotAvailable(
     ) {
       return false;
     }
+    return true;
+  });
 
+  // Comprobar colisión con citas existentes (incluyendo buffer)
+  const hasCollision = dayAppointments.some((appointment) => {
     const aptStartMinutes = toMinutes(appointment.start_time) - rules.bufferMinutes;
     const aptEndMinutes = getAppointmentEndMinutes(appointment) + rules.bufferMinutes;
-
     return requestedStartMinutes < aptEndMinutes && requestedEndMinutes > aptStartMinutes;
   });
+
+  if (hasCollision) {
+    return false;
+  }
+
+  // Comprobar que la cita propuesta no genera huecos muertos no aprovechables
+  if (rules.minGapMinutes > 0) {
+    if (createsBadGap(dayAppointments, requestedStartMinutes, requestedEndMinutes, rules.minGapMinutes)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function isDayAvailable(
