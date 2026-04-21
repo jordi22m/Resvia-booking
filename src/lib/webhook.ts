@@ -177,20 +177,8 @@ export async function triggerWebhook(
       }
     } else {
       console.info('[webhook] enqueue:ok', { event, userId, correlationId });
-
-      // Best-effort immediate dispatch. Queue remains source of truth.
-      const { error: invokeError } = await supabase.functions.invoke('send-webhook', {
-        body: { limit: 20, correlation_id: correlationId },
-      });
-
-      if (invokeError) {
-        console.warn('[webhook] dispatch:invoke_failed', {
-          event,
-          userId,
-          correlationId,
-          error: invokeError,
-        });
-      }
+      // Dispatch is handled server-side via pg_cron (every minute).
+      // No browser-side invoke to avoid CORS/auth issues.
     }
   } catch (error) {
     console.error('[webhook] trigger:unexpected_error', { event, userId, correlationId, error });
