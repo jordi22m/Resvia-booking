@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,11 @@ type TokenBooking = {
 
 export default function BookingReschedulePage() {
   const { token } = useParams<{ token: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [booking, setBooking] = useState<TokenBooking | null>(null);
-  const [done, setDone] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -39,19 +39,19 @@ export default function BookingReschedulePage() {
     void load();
   }, [token]);
 
-  const markRescheduled = async () => {
+  // Marca la cita actual como reprogramada y redirige a la página de reservas
+  const handleReschedule = async () => {
     if (!token) return;
     setMarking(true);
     const { error: rpcError } = await supabase.rpc('mark_booking_rescheduled_by_token', { p_token: token });
-    setMarking(false);
     if (rpcError) {
       setError(rpcError.message);
+      setMarking(false);
       return;
     }
-    setDone(true);
+    const bookingUrl = booking?.business_slug ? `/book/${booking.business_slug}` : '/';
+    navigate(bookingUrl);
   };
-
-  const bookingUrl = booking?.business_slug ? `/book/${booking.business_slug}` : '/';
 
   if (loading) {
     return (
@@ -65,7 +65,7 @@ export default function BookingReschedulePage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md">
         <CardContent className="p-6 space-y-4">
-          <h1 className="text-xl font-semibold text-foreground">Reprogramar reserva</h1>
+          <h1 className="text-xl font-semibold text-foreground">Reprogramar cita</h1>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {booking ? (
             <div className="text-sm text-muted-foreground space-y-1">
@@ -75,14 +75,17 @@ export default function BookingReschedulePage() {
               <p><strong>Hora actual:</strong> {booking.start_time || '-'}</p>
             </div>
           ) : null}
-          <a href={bookingUrl} className="block">
-            <Button className="w-full">Elegir nueva fecha y hora</Button>
-          </a>
-          <Button variant="outline" className="w-full" onClick={markRescheduled} disabled={marking || Boolean(error)}>
+          <p className="text-sm text-muted-foreground">
+            Al continuar, tu cita actual quedará marcada como reprogramada y podrás elegir un nuevo horario.
+          </p>
+          <Button
+            className="w-full"
+            onClick={handleReschedule}
+            disabled={marking || Boolean(error) || !booking}
+          >
             {marking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Ya reprogramé, marcar reprogramada
+            Elegir nueva fecha y hora
           </Button>
-          {done ? <p className="text-sm text-foreground">Reserva marcada como reprogramada.</p> : null}
         </CardContent>
       </Card>
     </div>
