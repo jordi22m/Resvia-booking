@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar, ChevronLeft, Check, Clock, MapPin, Loader2, ChevronRight } from 'lucide-react';
@@ -28,6 +28,7 @@ type BookingRpcResult = {
   reschedule_token?: string | null;
 };
 type BookingConfirmationData = {
+  flow?: 'booking' | 'reschedule';
   publicId?: string | null;
   cancelUrl?: string | null;
   rescheduleUrl?: string | null;
@@ -40,6 +41,25 @@ function formatBookingDateEs(date: Date): string {
   const weekday = WEEKDAY_ES[date.getDay()];
   const dayAndMonth = format(date, "d 'de' MMMM", { locale: es });
   return `${weekday}, ${dayAndMonth}`;
+}
+
+function toUserBookingError(errorMessage: string | null): string {
+  if (!errorMessage) return 'No pudimos completar tu solicitud. Intenta nuevamente.';
+
+  const lowerMessage = errorMessage.toLowerCase();
+  if (lowerMessage.includes('token') || lowerMessage.includes('no encontrado') || lowerMessage.includes('not found')) {
+    return 'Este enlace de reprogramacion no es valido o ya no esta disponible.';
+  }
+
+  if (lowerMessage.includes('ya no puede reprogramarse')) {
+    return 'Esta cita ya no puede reprogramarse.';
+  }
+
+  if (lowerMessage.includes('horario') || lowerMessage.includes('disponible') || lowerMessage.includes('exclusion')) {
+    return 'Ese horario ya no esta disponible. Elige otro e intentalo de nuevo.';
+  }
+
+  return 'No pudimos guardar tu cita. Intenta nuevamente en unos minutos.';
 }
 
 function TimeSlotsSkeleton({ compact = false }: { compact?: boolean }) {
@@ -165,6 +185,7 @@ async function handleBookingSubmit({
   formData,
   availability,
   appointments,
+  rescheduleToken,
   setSubmitting,
   setConfirmationData,
   setStep,
@@ -179,6 +200,7 @@ async function handleBookingSubmit({
   formData: { name: string; phone: string; email: string; notes: string };
   availability: Availability[];
   appointments: Appointment[];
+  rescheduleToken?: string | null;
   setSubmitting: (submitting: boolean) => void;
   setConfirmationData: (data: BookingConfirmationData | null) => void;
   setStep: (step: Step) => void;
@@ -209,7 +231,7 @@ async function handleBookingSubmit({
   if (!isAvailable) {
     toast({
       title: 'Horario no disponible',
-      description: 'Este horario ya no está disponible. Por favor selecciona otro.',
+      description: 'Este horario ya no esta disponible. Selecciona otro.',
       variant: 'destructive'
     });
     setSubmitting(false);
@@ -221,7 +243,7 @@ async function handleBookingSubmit({
   const endMinutes = h * 60 + m + duration;
   const end_time = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
-  const { data, error } = await supabase.rpc('create_public_booking', {
+  const bookingPayload = {
     p_slug: slug,
     p_service_id: service.id,
     p_staff_id: selectedStaff || null,
@@ -232,17 +254,37 @@ async function handleBookingSubmit({
     p_customer_phone: formData.phone,
     p_customer_email: formData.email || null,
     p_notes: formData.notes || null,
-  });
+  };
+
+  const { data, error } = rescheduleToken
+    ? await supabase.rpc('reschedule_booking_by_token', {
+        p_token: rescheduleToken,
+        p_service_id: service.id,
+        p_staff_id: selectedStaff || null,
+        p_date: format(selectedDate, 'yyyy-MM-dd'),
+        p_start_time: selectedTime,
+        p_end_time: end_time,
+        p_notes: formData.notes || null,
+      })
+    : await supabase.rpc('create_public_booking', bookingPayload);
 
   setSubmitting(false);
   if (error) {
-    toast({ title: 'Error al crear reserva', description: error.message, variant: 'destructive' });
+    const friendlyError = toUserBookingError(error.message);
+    toast({
+      title: rescheduleToken ? 'No se pudo reprogramar' : 'Error al crear reserva',
+      description: friendlyError,
+      variant: 'destructive'
+    });
   } else {
     const baseUrl = window.location.origin;
     const rpcData = (typeof data === 'object' && data !== null ? data : { public_id: data }) as BookingRpcResult;
-    const cancelUrl = rpcData.cancel_token ? `${baseUrl}/booking/cancel/${rpcData.cancel_token}` : null;
-    const rescheduleUrl = rpcData.reschedule_token ? `${baseUrl}/booking/reschedule/${rpcData.reschedule_token}` : null;
+    const cancelToken = rpcData.cancel_token ?? null;
+    const nextRescheduleToken = rpcData.reschedule_token ?? rescheduleToken ?? null;
+    const cancelUrl = cancelToken ? `${baseUrl}/booking/cancel/${cancelToken}` : null;
+    const rescheduleUrl = nextRescheduleToken ? `${baseUrl}/booking/reschedule/${nextRescheduleToken}` : null;
     setConfirmationData({
+      flow: rescheduleToken ? 'reschedule' : 'booking',
       publicId: rpcData.public_id ?? null,
       cancelUrl,
       rescheduleUrl,
@@ -253,6 +295,9 @@ async function handleBookingSubmit({
 
 export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
+  const rescheduleToken = searchParams.get('rescheduleToken')?.trim() || '';
+  const isRescheduleFlow = Boolean(rescheduleToken);
   const { data: profile, isLoading: loadingProfile, error: profileError } = useProfileBySlug(slug);
   const { data: services, isLoading: loadingServices, error: servicesError } = useServicesByUserId(profile?.user_id);
   const { data: staff } = useStaffByUserId(profile?.user_id);
@@ -450,8 +495,14 @@ export default function BookingPage() {
             <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
               <Check className="h-8 w-8 text-green-600" />
             </div>
-            <h2 className="text-xl font-semibold text-foreground">¡Reserva confirmada!</h2>
-            <p className="text-sm text-muted-foreground">Recibirás una confirmación en breve.</p>
+            <h2 className="text-xl font-semibold text-foreground">
+              {confirmationData?.flow === 'reschedule' ? '¡Cita reprogramada!' : '¡Reserva confirmada!'}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {confirmationData?.flow === 'reschedule'
+                ? 'Tu nuevo horario fue guardado correctamente.'
+                : 'Recibiras una confirmacion en breve.'}
+            </p>
             <div className="bg-secondary rounded-lg p-4 text-left space-y-2 text-sm">
               <p><strong>Servicio:</strong> {service?.name}</p>
               <p><strong>Profesional:</strong> {staffMember?.name || 'Cualquier profesional disponible'}</p>
@@ -502,6 +553,11 @@ export default function BookingPage() {
           {profile.address ? (
             <p className="text-sm text-muted-foreground flex items-center justify-center gap-1">
               <MapPin className="h-3.5 w-3.5" /> {profile.address}
+            </p>
+          ) : null}
+          {isRescheduleFlow ? (
+            <p className="mt-2 inline-flex items-center rounded-full bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 ring-1 ring-cyan-200">
+              Modo reprogramacion activa
             </p>
           ) : null}
         </div>
@@ -988,6 +1044,7 @@ export default function BookingPage() {
                   formData,
                   availability: availability || [],
                   appointments: dayAppointments || [],
+                  rescheduleToken: rescheduleToken || null,
                   setSubmitting,
                   setConfirmationData,
                   setStep,
@@ -998,7 +1055,7 @@ export default function BookingPage() {
                 <span className="inline-flex h-4 w-4 items-center justify-center mr-2">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 </span>
-                <span>Confirmar reserva</span>
+                <span>{isRescheduleFlow ? 'Confirmar reprogramacion' : 'Confirmar reserva'}</span>
               </Button>
             </div>
           </div>
