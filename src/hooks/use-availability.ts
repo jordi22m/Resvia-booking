@@ -34,14 +34,20 @@ export function useAvailabilityBySlug(slug: string | undefined) {
   return useQuery({
     queryKey: ['availability', 'slug', slug],
     queryFn: async () => {
+      console.log('[useAvailabilityBySlug] slug', slug);
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('user_id')
         .eq('slug', slug!)
         .maybeSingle();
 
-      if (profileError) throw profileError;
-      if (!profile) return [];
+      if (profileError) {
+        console.error('[useAvailabilityBySlug] Profile error', profileError);
+        throw profileError;
+      }
+      if (!profile) {
+        throw new Error('Perfil no encontrado');
+      }
 
       const { data, error } = await supabase
         .from('availability')
@@ -51,7 +57,10 @@ export function useAvailabilityBySlug(slug: string | undefined) {
         .order('day_of_week')
         .order('start_time');
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useAvailabilityBySlug] Availability error', error);
+        throw error;
+      }
       return data as Availability[];
     },
     enabled: !!slug,

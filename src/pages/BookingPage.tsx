@@ -436,6 +436,22 @@ export default function BookingPage() {
     return () => window.cancelAnimationFrame(animationFrame);
   }, [selectedDate]);
 
+  if (!slug) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center space-y-3">
+            <h2 className="text-xl font-semibold text-foreground">Enlace invalido</h2>
+            <p className="text-sm text-muted-foreground">
+              Falta el identificador del negocio en la URL.
+            </p>
+            <Button variant="outline" onClick={() => window.location.reload()}>Recargar</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Etapa 1: Cargando perfil
   if (loadingProfile) {
     return (
@@ -465,8 +481,15 @@ export default function BookingPage() {
   // Etapa 2: Perfil no encontrado
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">Negocio no encontrado</p>
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center space-y-2">
+            <h2 className="text-xl font-semibold text-foreground">Negocio no encontrado</h2>
+            <p className="text-muted-foreground text-sm">
+              El enlace de reserva no es valido o ya no esta disponible.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -41,6 +41,7 @@ export function useAppointmentsBySlugAndDate(slug: string | undefined, date: str
   return useQuery({
     queryKey: ['appointments', 'by-slug-date', slug, date],
     queryFn: async () => {
+      console.log('[useAppointmentsBySlugAndDate] slug/date', slug, date);
       // First get the user_id from the profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -48,8 +49,13 @@ export function useAppointmentsBySlugAndDate(slug: string | undefined, date: str
         .eq('slug', slug!)
         .maybeSingle();
 
-      if (profileError) throw profileError;
-      if (!profile) return [];
+      if (profileError) {
+        console.error('[useAppointmentsBySlugAndDate] Profile error', profileError);
+        throw profileError;
+      }
+      if (!profile) {
+        throw new Error('Perfil no encontrado');
+      }
 
       // Then get appointments for that user and date
       const { data, error } = await supabase
@@ -59,7 +65,10 @@ export function useAppointmentsBySlugAndDate(slug: string | undefined, date: str
         .eq('date', date!)
         .in('status', ['pending', 'confirmed']);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useAppointmentsBySlugAndDate] Appointments error', error);
+        throw error;
+      }
       return data as Appointment[];
     },
     enabled: !!slug && !!date,
@@ -126,6 +135,7 @@ export function useAppointmentsBySlugAndDateRange(slug: string | undefined, star
   return useQuery({
     queryKey: ['appointments', 'by-slug-date-range', slug, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
+      console.log('[useAppointmentsBySlugAndDateRange] slug/range', slug, startDate, endDate);
       // First get the user_id from the profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -133,8 +143,13 @@ export function useAppointmentsBySlugAndDateRange(slug: string | undefined, star
         .eq('slug', slug!)
         .maybeSingle();
 
-      if (profileError) throw profileError;
-      if (!profile) return [];
+      if (profileError) {
+        console.error('[useAppointmentsBySlugAndDateRange] Profile error', profileError);
+        throw profileError;
+      }
+      if (!profile) {
+        throw new Error('Perfil no encontrado');
+      }
 
       // Then get appointments for that user and date range
       const { data, error } = await supabase
@@ -145,7 +160,10 @@ export function useAppointmentsBySlugAndDateRange(slug: string | undefined, star
         .lte('date', format(endDate!, 'yyyy-MM-dd'))
         .in('status', ['pending', 'confirmed']);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useAppointmentsBySlugAndDateRange] Appointments error', error);
+        throw error;
+      }
       return data as Appointment[];
     },
     enabled: !!slug && !!startDate && !!endDate,
