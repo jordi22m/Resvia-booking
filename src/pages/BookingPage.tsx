@@ -321,7 +321,22 @@ export default function BookingPage() {
   const [confirmationData, setConfirmationData] = useState<BookingConfirmationData | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [monthDirection, setMonthDirection] = useState<'next' | 'prev'>('next');
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
   const timeSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Monitor timeout: si tarda > 8s cargando, mostrar error
+  useEffect(() => {
+    const isLoading = loadingProfile || loadingServices || loadingAvailability;
+    if (!isLoading) {
+      setLoadingTimeout(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      console.warn('[BookingPage] Loading timeout: profile:', !profile, 'services:', !services, 'availability:', !availability);
+      setLoadingTimeout(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [loadingProfile, loadingServices, loadingAvailability, profile, services, availability]);
 
   const service = services?.find((s: Service) => s.id === selectedService);
   const staffMember = staff?.find((s: StaffMember) => s.id === selectedStaff);
@@ -446,6 +461,37 @@ export default function BookingPage() {
               Falta el identificador del negocio en la URL.
             </p>
             <Button variant="outline" onClick={() => window.location.reload()}>Recargar</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ── TIMEOUT VISIBLE: Si tarda >8s, mostrar error ────────────────────────────
+  if (loadingTimeout) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center space-y-4">
+            <div className="text-3xl">⏱️</div>
+            <h2 className="text-xl font-semibold text-amber-600">Carga muy lenta</h2>
+            <p className="text-sm text-muted-foreground">
+              Lleva más de 8 segundos cargando. Puede ser un problema de conexión.
+            </p>
+            <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded text-xs text-muted-foreground text-left space-y-1">
+              <p><strong>Estado:</strong></p>
+              <p>• Perfil: {loadingProfile ? '⏳ Cargando' : profile ? '✅ Ok' : '❌ Error'}</p>
+              <p>• Servicios: {loadingServices ? '⏳ Cargando' : services ? '✅ Ok' : '❌ Error'}</p>
+              <p>• Disponibilidad: {loadingAvailability ? '⏳ Cargando' : availability ? '✅ Ok' : '❌ Error'}</p>
+            </div>
+            <div className="space-y-2">
+              <Button className="w-full" onClick={() => window.location.reload()}>
+                🔄 Recargar página
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setLoadingTimeout(false)}>
+                Esperar más
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
