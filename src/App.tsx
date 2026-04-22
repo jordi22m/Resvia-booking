@@ -17,6 +17,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import BookingPage from "@/pages/BookingPage";
 import BookingCancelPage from "@/pages/BookingCancelPage";
 import BookingReschedulePage from "@/pages/BookingReschedulePage";
+import BookingDebugPage from "@/pages/BookingDebugPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
@@ -58,6 +59,7 @@ const App = () => (
             <Route path="/book/:slug" element={<BookingPage />} />
             <Route path="/booking/cancel/:token" element={<BookingCancelPage />} />
             <Route path="/booking/reschedule/:token" element={<BookingReschedulePage />} />
+            <Route path="/debug" element={<BookingDebugPage />} />
 
             {/* Protected routes */}
             <Route path="/" element={<Index />} />
