@@ -304,6 +304,13 @@ export default function BookingPage() {
   const { data: availability, isLoading: loadingAvailability, error: availabilityError } = useAvailabilityBySlug(slug);
   const { toast } = useToast();
 
+  // ── Debug logs ──────────────────────────────────────────────────────────────
+  useEffect(() => { console.log('[BookingPage] slug', slug); }, [slug]);
+  useEffect(() => { console.log('[BookingPage] profile', profile, 'error', profileError); }, [profile, profileError]);
+  useEffect(() => { console.log('[BookingPage] services', services, 'error', servicesError); }, [services, servicesError]);
+  useEffect(() => { console.log('[BookingPage] availability', availability, 'error', availabilityError); }, [availability, availabilityError]);
+  // ────────────────────────────────────────────────────────────────────────────
+
   const [step, setStep] = useState<Step>('service');
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
@@ -440,6 +447,8 @@ export default function BookingPage() {
 
   const queryError = profileError || servicesError || availabilityError || dayAppointmentsError || monthAppointmentsError;
   if (queryError) {
+    const errSource = profileError ? 'perfil' : servicesError ? 'servicios' : availabilityError ? 'disponibilidad' : 'citas';
+    console.error('[BookingPage] query error in', errSource, queryError);
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">

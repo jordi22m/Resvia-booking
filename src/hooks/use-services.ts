@@ -74,6 +74,7 @@ export function useServicesByUserId(userId: string | undefined) {
       return (data as RawService[]).map(normalizeService);
     },
     enabled: !!userId,
+    retry: 1,
   });
 }
 

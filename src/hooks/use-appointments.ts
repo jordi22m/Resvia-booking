@@ -46,9 +46,10 @@ export function useAppointmentsBySlugAndDate(slug: string | undefined, date: str
         .from('profiles')
         .select('user_id')
         .eq('slug', slug!)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
+      if (!profile) return [];
 
       // Then get appointments for that user and date
       const { data, error } = await supabase
@@ -62,6 +63,7 @@ export function useAppointmentsBySlugAndDate(slug: string | undefined, date: str
       return data as Appointment[];
     },
     enabled: !!slug && !!date,
+    retry: 1,
   });
 }
 
@@ -129,9 +131,10 @@ export function useAppointmentsBySlugAndDateRange(slug: string | undefined, star
         .from('profiles')
         .select('user_id')
         .eq('slug', slug!)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
+      if (!profile) return [];
 
       // Then get appointments for that user and date range
       const { data, error } = await supabase
@@ -146,6 +149,7 @@ export function useAppointmentsBySlugAndDateRange(slug: string | undefined, star
       return data as Appointment[];
     },
     enabled: !!slug && !!startDate && !!endDate,
+    retry: 1,
   });
 }
 

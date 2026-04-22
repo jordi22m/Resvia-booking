@@ -24,7 +24,17 @@ import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import Index from "@/pages/Index";
 import NotFound from "./pages/NotFound.tsx";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      retryDelay: 500,
+      // 'always' avoids stalling on WhatsApp/in-app browsers that report
+      // navigator.onLine incorrectly while the network is actually available.
+      networkMode: 'always',
+    },
+  },
+});
 
 const ProtectedApp = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute>

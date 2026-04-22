@@ -38,9 +38,10 @@ export function useAvailabilityBySlug(slug: string | undefined) {
         .from('profiles')
         .select('user_id')
         .eq('slug', slug!)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
+      if (!profile) return [];
 
       const { data, error } = await supabase
         .from('availability')
@@ -54,5 +55,6 @@ export function useAvailabilityBySlug(slug: string | undefined) {
       return data as Availability[];
     },
     enabled: !!slug,
+    retry: 1,
   });
 }
