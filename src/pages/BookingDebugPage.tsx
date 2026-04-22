@@ -80,9 +80,30 @@ export default function BookingDebugPage() {
         newResults.appointmentsAccess = `❌ Exception: ${e.message}`;
       }
 
-      // Test 5: Try to fetch a specific profile by slug
+      // Test 5: List all profiles with slugs
       try {
-        const testSlug = 'test'; // hardcoded test
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, slug, business_name, booking_enabled')
+          .not('slug', 'is', null);
+
+        if (error) {
+          newResults.allProfiles = `❌ Error: ${error.message}`;
+        } else if (data && data.length > 0) {
+          const profileList = data
+            .map((p: any) => `${p.slug} (${p.business_name || 'sin nombre'}) - booking: ${p.booking_enabled !== false ? '✅' : '❌'}`)
+            .join(' | ');
+          newResults.allProfiles = `✅ ${data.length} profiles encontrados: ${profileList}`;
+        } else {
+          newResults.allProfiles = `⚠️ No hay profiles con slug definido`;
+        }
+      } catch (e: any) {
+        newResults.allProfiles = `❌ Exception: ${e.message}`;
+      }
+
+      // Test 6: Try to fetch a specific profile by slug
+      try {
+        const testSlug = 'test';
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -90,14 +111,14 @@ export default function BookingDebugPage() {
           .maybeSingle();
 
         if (error) {
-          newResults.profileBySlug = `❌ Error fetching by slug: ${error.message}`;
+          newResults.testSlugFetch = `❌ Error: ${error.message}`;
         } else if (data) {
-          newResults.profileBySlug = `✅ Profile encontrado para slug "${testSlug}"`;
+          newResults.testSlugFetch = `✅ Profile encontrado: ${data.business_name}`;
         } else {
-          newResults.profileBySlug = `⚠️ No hay profile con slug "${testSlug}" (normal si no existe)`;
+          newResults.testSlugFetch = `⚠️ Slug "${testSlug}" no existe (usa uno de los anteriores)`;
         }
       } catch (e: any) {
-        newResults.profileBySlug = `❌ Exception: ${e.message}`;
+        newResults.testSlugFetch = `❌ Exception: ${e.message}`;
       }
 
       newResults.status = '✅ Diagnóstico completado';
