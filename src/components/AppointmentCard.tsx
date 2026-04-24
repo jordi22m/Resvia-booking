@@ -26,8 +26,8 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
   switch (status) {
     case 'confirmed':
       return {
-        background: 'bg-emerald-100/60 dark:bg-emerald-900/35',
-        border: 'border-emerald-200 dark:border-emerald-800/60',
+        background: 'bg-emerald-200/80 dark:bg-emerald-900/55',
+        border: 'border-emerald-300 dark:border-emerald-700',
         sidebar: 'bg-emerald-500',
         text: 'text-emerald-950 dark:text-emerald-100',
         badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200',
@@ -36,8 +36,8 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
     case 'cancelled':
     case 'canceled':
       return {
-        background: 'bg-slate-100/80 dark:bg-slate-800/50',
-        border: 'border-slate-200 dark:border-slate-700',
+        background: 'bg-slate-200/85 dark:bg-slate-800/65',
+        border: 'border-slate-300 dark:border-slate-600',
         sidebar: 'bg-slate-400 dark:bg-slate-500',
         text: 'text-slate-800 dark:text-slate-100',
         badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
@@ -45,8 +45,8 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
       };
     case 'completed':
       return {
-        background: 'bg-sky-100/60 dark:bg-sky-900/35',
-        border: 'border-sky-200 dark:border-sky-800/60',
+        background: 'bg-sky-200/80 dark:bg-sky-900/55',
+        border: 'border-sky-300 dark:border-sky-700',
         sidebar: 'bg-sky-500',
         text: 'text-sky-950 dark:text-sky-100',
         badge: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200',
@@ -54,8 +54,8 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
       };
     case 'blocked':
       return {
-        background: 'bg-slate-200/70 dark:bg-slate-700/55 bg-[repeating-linear-gradient(-45deg,rgba(148,163,184,0.35)_0px,rgba(148,163,184,0.35)_6px,rgba(148,163,184,0.12)_6px,rgba(148,163,184,0.12)_12px)]',
-        border: 'border-slate-300 dark:border-slate-600',
+        background: 'bg-slate-300/75 dark:bg-slate-700/70 bg-[repeating-linear-gradient(-45deg,rgba(100,116,139,0.42)_0px,rgba(100,116,139,0.42)_6px,rgba(148,163,184,0.18)_6px,rgba(148,163,184,0.18)_12px)]',
+        border: 'border-slate-400 dark:border-slate-500',
         sidebar: 'bg-slate-500 dark:bg-slate-300',
         text: 'text-slate-900 dark:text-slate-100',
         badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
@@ -63,8 +63,8 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
       };
     case 'closed':
       return {
-        background: 'bg-slate-700/80 dark:bg-slate-900/85',
-        border: 'border-slate-600 dark:border-slate-500',
+        background: 'bg-slate-800/90 dark:bg-slate-950/92',
+        border: 'border-slate-700 dark:border-slate-500',
         sidebar: 'bg-slate-900 dark:bg-slate-200',
         text: 'text-slate-100 dark:text-slate-100',
         badge: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
@@ -73,8 +73,8 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
     case 'pending':
     default:
       return {
-        background: 'bg-amber-100/60 dark:bg-amber-900/35',
-        border: 'border-amber-200 dark:border-amber-800/60',
+        background: 'bg-amber-200/80 dark:bg-amber-900/55',
+        border: 'border-amber-300 dark:border-amber-700',
         sidebar: 'bg-amber-500',
         text: 'text-amber-950 dark:text-amber-100',
         badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200',
@@ -159,7 +159,7 @@ export function AppointmentCard({
           className={cn(
             'absolute rounded-xl border cursor-pointer overflow-hidden select-none',
             'shadow-sm hover:shadow-md transition-all duration-150',
-            'hover:-translate-y-[1px] active:translate-y-0 active:shadow-sm',
+            'hover:-translate-y-[1px] hover:saturate-110 active:translate-y-0 active:shadow-sm',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
             styles.background,
             styles.border,

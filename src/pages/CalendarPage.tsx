@@ -234,9 +234,9 @@ export default function CalendarPage() {
     (isSameDay(addDays(today, 7), currentDate));
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-slate-50/80 dark:bg-slate-950/50">
       {/* Enhanced Header */}
-      <div className="border-b border-border bg-card/50 backdrop-blur-sm">
+      <div className="border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 shadow-sm backdrop-blur-md">
         <div className="px-4 lg:px-6 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             {/* Navigation */}
@@ -245,7 +245,7 @@ export default function CalendarPage() {
                 variant="outline" 
                 size="icon" 
                 onClick={() => navigate(-1)}
-                className="hover:bg-accent"
+                className="border-slate-300/90 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -253,7 +253,7 @@ export default function CalendarPage() {
                 variant="outline" 
                 size="icon" 
                 onClick={() => navigate(1)}
-                className="hover:bg-accent"
+                className="border-slate-300/90 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -277,7 +277,7 @@ export default function CalendarPage() {
 
             {/* Controls */}
             <div className="flex items-center gap-2">
-              <div className="flex border border-border rounded-lg overflow-hidden bg-muted/50">
+              <div className="flex border border-slate-300/80 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-100/80 dark:bg-slate-800/70 shadow-sm">
                 <button 
                   onClick={() => setViewMode('day')} 
                   className={cn(
@@ -309,6 +309,7 @@ export default function CalendarPage() {
                   setNewApt(p => ({ ...p, date: format(currentDate, 'yyyy-MM-dd'), customer_id: '', service_id: '', staff_id: '' })); 
                   setDialogOpen(true); 
                 }}
+                className="shadow-sm hover:shadow-md"
               >
                 <Plus className="h-4 w-4 mr-1.5" />
                 Nueva cita

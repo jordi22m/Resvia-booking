@@ -190,12 +190,12 @@ function TimeGridColumn({
   };
 
   return (
-    <div className="flex-1 min-w-[100px] border-r border-border last:border-r-0 bg-background/50 dark:bg-background/30">
+    <div className="flex-1 min-w-[100px] border-r border-slate-100 dark:border-slate-800/50 last:border-r-0 bg-white/70 dark:bg-slate-900/35">
       {/* Day Header */}
       <div
         className={cn(
-          'h-14 border-b border-border flex flex-col items-center justify-center sticky top-0 z-10 backdrop-blur-sm transition-colors',
-          isToday ? 'bg-primary/10 dark:bg-primary/20' : 'bg-background/95 dark:bg-background/80',
+          'h-14 border-b border-slate-100 dark:border-slate-800/60 flex flex-col items-center justify-center sticky top-0 z-10 backdrop-blur-md transition-colors',
+          isToday ? 'bg-primary/15 dark:bg-primary/25' : 'bg-white/95 dark:bg-slate-900/90',
         )}
       >
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{format(day, 'EEE', { locale: es })}</span>
@@ -223,10 +223,10 @@ function TimeGridColumn({
                   }
                 }}
                 className={cn(
-                  'h-20 border-b border-border/50 px-1 py-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                  'h-20 border-b border-slate-100 dark:border-slate-800/50 px-1 py-2 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                   isWorkingHour(hour)
-                    ? 'bg-primary/5 dark:bg-primary/5 hover:bg-primary/10 dark:hover:bg-primary/15'
-                    : 'bg-muted/20 dark:bg-muted/10 hover:bg-muted/30 dark:hover:bg-muted/20',
+                    ? 'bg-primary/5 dark:bg-primary/10 hover:bg-primary/10 dark:hover:bg-primary/20'
+                    : 'bg-slate-50/60 dark:bg-slate-900/30 hover:bg-slate-100/70 dark:hover:bg-slate-800/45',
                 )}
               />
             </PopoverTrigger>
@@ -390,17 +390,17 @@ export function CalendarTimeGrid({
   );
 
   return (
-    <div className="flex-1 overflow-auto bg-muted/5 dark:bg-muted/5 border-t border-border">
+    <div className="flex-1 overflow-auto bg-slate-50/70 dark:bg-slate-950/40 border-t border-slate-100 dark:border-slate-800/60">
       <div className="flex min-w-full">
         {/* Time Column Header */}
-        <div className="w-20 shrink-0 border-r border-border bg-background/95 dark:bg-background/90 sticky left-0 z-20">
-          <div className="h-14 border-b border-border bg-background/98 dark:bg-background/95 flex items-center justify-center">
+        <div className="w-20 shrink-0 border-r border-slate-100 dark:border-slate-800/60 bg-white/95 dark:bg-slate-900/90 sticky left-0 z-20 shadow-[1px_0_0_rgba(15,23,42,0.04)]">
+          <div className="h-14 border-b border-slate-100 dark:border-slate-800/60 bg-white/98 dark:bg-slate-900/95 flex items-center justify-center">
             <span className="text-xs font-semibold text-muted-foreground">Hora</span>
           </div>
           {HOURS.map((hour) => (
             <div
               key={hour}
-              className="h-20 border-b border-border/50 flex items-start justify-center pt-1.5"
+              className="h-20 border-b border-slate-100 dark:border-slate-800/50 flex items-start justify-center pt-1.5"
             >
               <span className="text-xs font-semibold text-muted-foreground">{hour.toString().padStart(2, '0')}:00</span>
             </div>
