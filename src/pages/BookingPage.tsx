@@ -18,6 +18,7 @@ import { useAvailabilityBySlug, type Availability } from '@/hooks/use-availabili
 import { useAvailabilityExceptionsBySlug, type AvailabilityException } from '@/hooks/use-availability-exceptions';
 import { useAppointmentsBySlugAndDate, useAppointmentsBySlugAndDateRange, type Appointment } from '@/hooks/use-appointments';
 import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable, getBestAvailableSlots } from '@/lib/booking-utils';
+import { trackRecommendedSlotBooking } from '@/lib/recommended-slot-analytics';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -252,8 +253,8 @@ async function handleBookingSubmit({
   setConfirmationData: (data: BookingConfirmationData | null) => void;
   setStep: (step: Step) => void;
   toast: (options: { title: string; description?: string; variant?: 'destructive' }) => void;
-}) {
-  if (!slug || !profile || !service || !selectedDate || !selectedTime) return;
+}): Promise<boolean> {
+  if (!slug || !profile || !service || !selectedDate || !selectedTime) return false;
   setSubmitting(true);
 
   const bookingRules = {
@@ -282,7 +283,7 @@ async function handleBookingSubmit({
       variant: 'destructive'
     });
     setSubmitting(false);
-    return;
+    return false;
   }
 
   const duration = service.duration || 30;
@@ -323,6 +324,7 @@ async function handleBookingSubmit({
       description: friendlyError,
       variant: 'destructive'
     });
+    return false;
   } else {
     const baseUrl = window.location.origin;
     const rpcData = (typeof data === 'object' && data !== null ? data : { public_id: data }) as BookingRpcResult;
@@ -337,6 +339,7 @@ async function handleBookingSubmit({
       rescheduleUrl,
     });
     setStep('confirmed');
+    return true;
   }
 }
 
@@ -517,6 +520,10 @@ export default function BookingPage() {
 
   const previewTimeSlots = useMemo(() => availableTimeSlots.slice(0, 6), [availableTimeSlots]);
   const hasUrgency = !loadingDayAppointments && availableTimeSlots.length > 0 && availableTimeSlots.length <= 3;
+  const selectedSlotMeta = useMemo(
+    () => availableTimeSlots.find((slot) => slot.time === selectedTime) ?? null,
+    [availableTimeSlots, selectedTime]
+  );
 
   useEffect(() => {
     if (loadingDayAppointments) return;
@@ -1285,22 +1292,32 @@ export default function BookingPage() {
                   (requireEmail && !formData.email) ||
                   submitting
                 }
-                onClick={() => handleBookingSubmit({
-                  slug: slug || '',
-                  profile,
-                  service,
-                  selectedDate,
-                  selectedTime,
-                  selectedStaff,
-                  formData,
-                  availability: availability || [],
-                  appointments: dayAppointments || [],
-                  rescheduleToken: rescheduleToken || null,
-                  setSubmitting,
-                  setConfirmationData,
-                  setStep,
-                  toast
-                })}
+                onClick={async () => {
+                  const selectedRecommended = Boolean(
+                    selectedSlotMeta?.isPrimaryRecommended || selectedSlotMeta?.isRecommended
+                  );
+
+                  const bookingCreated = await handleBookingSubmit({
+                    slug: slug || '',
+                    profile,
+                    service,
+                    selectedDate,
+                    selectedTime,
+                    selectedStaff,
+                    formData,
+                    availability: availability || [],
+                    appointments: dayAppointments || [],
+                    rescheduleToken: rescheduleToken || null,
+                    setSubmitting,
+                    setConfirmationData,
+                    setStep,
+                    toast
+                  });
+
+                  if (bookingCreated) {
+                    trackRecommendedSlotBooking(selectedRecommended);
+                  }
+                }}
                 className="px-8"
               >
                 <span className="inline-flex h-4 w-4 items-center justify-center mr-2">

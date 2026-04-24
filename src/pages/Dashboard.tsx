@@ -6,13 +6,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAppointments, useAppointmentsRealtime, useDeleteAppointment, useUpdateAppointment, type Appointment } from '@/hooks/use-appointments';
 import { useCustomers } from '@/hooks/use-customers';
 import { useServices } from '@/hooks/use-services';
 import { useStaff } from '@/hooks/use-staff';
 import { useProfile } from '@/hooks/use-profile';
+import { getRecommendedSlotUsageSummary } from '@/lib/recommended-slot-analytics';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   confirmed: { label: 'Confirmada', variant: 'default' },
@@ -35,7 +36,21 @@ export default function Dashboard() {
   const deleteAppointment = useDeleteAppointment();
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [recommendedUsage, setRecommendedUsage] = useState(() => getRecommendedSlotUsageSummary());
   useAppointmentsRealtime();
+
+  useEffect(() => {
+    const refreshUsage = () => setRecommendedUsage(getRecommendedSlotUsageSummary());
+
+    refreshUsage();
+    window.addEventListener('focus', refreshUsage);
+    window.addEventListener('storage', refreshUsage);
+
+    return () => {
+      window.removeEventListener('focus', refreshUsage);
+      window.removeEventListener('storage', refreshUsage);
+    };
+  }, []);
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayAppointments = (appointments || []).filter(a => a.date === today);
@@ -97,6 +112,25 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Analítica de horarios inteligentes</p>
+              <p className="text-lg font-semibold text-foreground mt-1">
+                {recommendedUsage.recommendedUsagePercent}% de reservas usan horarios recomendados
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {recommendedUsage.recommendedBookings} de {recommendedUsage.totalBookings} reservas registradas
+              </p>
+            </div>
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-secondary text-primary">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">
