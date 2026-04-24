@@ -17,6 +17,7 @@ import { useStaffByUserId, type StaffMember } from '@/hooks/use-staff';
 import { useAvailabilityBySlug, type Availability } from '@/hooks/use-availability';
 import { useAvailabilityExceptionsBySlug, type AvailabilityException } from '@/hooks/use-availability-exceptions';
 import { useAppointmentsBySlugAndDate, useAppointmentsBySlugAndDateRange, type Appointment } from '@/hooks/use-appointments';
+import { useCalendarBlocksBySlugAndDateRange, type CalendarBlock } from '@/hooks/use-calendar-blocks';
 import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable, getBestAvailableSlots } from '@/lib/booking-utils';
 import { trackRecommendedSlotBooking } from '@/lib/recommended-slot-analytics';
 import { supabase } from '@/lib/supabase';
@@ -233,6 +234,7 @@ async function handleBookingSubmit({
   formData,
   availability,
   appointments,
+  calendarBlocks,
   rescheduleToken,
   setSubmitting,
   setConfirmationData,
@@ -248,6 +250,7 @@ async function handleBookingSubmit({
   formData: { name: string; phone: string; email: string; notes: string };
   availability: Availability[];
   appointments: Appointment[];
+  calendarBlocks: CalendarBlock[];
   rescheduleToken?: string | null;
   setSubmitting: (submitting: boolean) => void;
   setConfirmationData: (data: BookingConfirmationData | null) => void;
@@ -264,6 +267,7 @@ async function handleBookingSubmit({
     minNoticeMinutes: profile.min_notice_minutes ?? 0,
     maxDaysAhead: profile.max_days_ahead ?? 60,
     staffId: selectedStaff,
+    calendarBlocks,
   };
 
   // Validate availability before creating appointment
@@ -394,6 +398,13 @@ export default function BookingPage() {
   const staffMember = staff?.find((s: StaffMember) => s.id === selectedStaff);
   const hasBookableServices = (services?.length ?? 0) > 0;
   const hasAvailabilityConfigured = (availability?.length ?? 0) > 0;
+
+  const { data: monthCalendarBlocks } = useCalendarBlocksBySlugAndDateRange(
+    slug,
+    startOfMonth(currentMonth),
+    endOfMonth(currentMonth)
+  );
+
   const bookingRules = useMemo(() => ({
     allowWeekends: profile?.allow_weekends ?? true,
     slotMinutes: profile?.slot_minutes ?? 30,
@@ -404,7 +415,8 @@ export default function BookingPage() {
     serviceIntervalMinutes: service?.interval_minutes ?? null,
     staffId: selectedStaff,
     exceptions: exceptions ?? [],
-  }), [profile, service, selectedStaff, exceptions]);
+    calendarBlocks: monthCalendarBlocks ?? [],
+  }), [profile, service, selectedStaff, exceptions, monthCalendarBlocks]);
   const requirePhone = profile?.require_phone ?? true;
   const requireEmail = profile?.require_email ?? false;
 
@@ -1307,6 +1319,7 @@ export default function BookingPage() {
                     formData,
                     availability: availability || [],
                     appointments: dayAppointments || [],
+                    calendarBlocks: monthCalendarBlocks || [],
                     rescheduleToken: rescheduleToken || null,
                     setSubmitting,
                     setConfirmationData,

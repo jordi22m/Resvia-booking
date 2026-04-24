@@ -3,14 +3,85 @@ import { Clock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-type AppointmentStatusStyle = {
-  surface: string;
-  sideBorder: string;
+export type AppointmentStatus =
+  | 'confirmed'
+  | 'pending'
+  | 'cancelled'
+  | 'canceled'
+  | 'completed'
+  | 'blocked'
+  | 'closed'
+  | string;
+
+type AppointmentStyles = {
+  background: string;
+  border: string;
+  sidebar: string;
   text: string;
-  hoverBorder: string;
   badge: string;
   badgeText: string;
 };
+
+export function getAppointmentStyles(status?: AppointmentStatus): AppointmentStyles {
+  switch (status) {
+    case 'confirmed':
+      return {
+        background: 'bg-emerald-100/60 dark:bg-emerald-900/35',
+        border: 'border-emerald-200 dark:border-emerald-800/60',
+        sidebar: 'bg-emerald-500',
+        text: 'text-emerald-950 dark:text-emerald-100',
+        badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200',
+        badgeText: 'Confirmada',
+      };
+    case 'cancelled':
+    case 'canceled':
+      return {
+        background: 'bg-slate-100/80 dark:bg-slate-800/50',
+        border: 'border-slate-200 dark:border-slate-700',
+        sidebar: 'bg-slate-400 dark:bg-slate-500',
+        text: 'text-slate-800 dark:text-slate-100',
+        badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+        badgeText: 'Cancelada',
+      };
+    case 'completed':
+      return {
+        background: 'bg-sky-100/60 dark:bg-sky-900/35',
+        border: 'border-sky-200 dark:border-sky-800/60',
+        sidebar: 'bg-sky-500',
+        text: 'text-sky-950 dark:text-sky-100',
+        badge: 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200',
+        badgeText: 'Completada',
+      };
+    case 'blocked':
+      return {
+        background: 'bg-slate-200/70 dark:bg-slate-700/55 bg-[repeating-linear-gradient(-45deg,rgba(148,163,184,0.35)_0px,rgba(148,163,184,0.35)_6px,rgba(148,163,184,0.12)_6px,rgba(148,163,184,0.12)_12px)]',
+        border: 'border-slate-300 dark:border-slate-600',
+        sidebar: 'bg-slate-500 dark:bg-slate-300',
+        text: 'text-slate-900 dark:text-slate-100',
+        badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+        badgeText: 'Bloqueado',
+      };
+    case 'closed':
+      return {
+        background: 'bg-slate-700/80 dark:bg-slate-900/85',
+        border: 'border-slate-600 dark:border-slate-500',
+        sidebar: 'bg-slate-900 dark:bg-slate-200',
+        text: 'text-slate-100 dark:text-slate-100',
+        badge: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
+        badgeText: 'Cerrado',
+      };
+    case 'pending':
+    default:
+      return {
+        background: 'bg-amber-100/60 dark:bg-amber-900/35',
+        border: 'border-amber-200 dark:border-amber-800/60',
+        sidebar: 'bg-amber-500',
+        text: 'text-amber-950 dark:text-amber-100',
+        badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200',
+        badgeText: 'Pendiente',
+      };
+  }
+}
 
 type AppointmentCardData = {
   id: string;
@@ -25,7 +96,7 @@ interface AppointmentCardProps {
   left: string;
   width: string;
   height: number;
-  statusStyle: AppointmentStatusStyle;
+  status?: AppointmentStatus;
   customerName: string;
   serviceName: string;
   staffName?: string;
@@ -39,7 +110,7 @@ export function AppointmentCard({
   left,
   width,
   height,
-  statusStyle,
+  status,
   customerName,
   serviceName,
   staffName,
@@ -73,9 +144,9 @@ export function AppointmentCard({
     return 'full';
   }, [availableHeight]);
 
-  const showOnlyName = density === 'compact';
   const showNameAndTime = density === 'medium';
   const showFull = density === 'full';
+  const styles = useMemo(() => getAppointmentStyles(status), [status]);
 
   return (
     <Tooltip>
@@ -86,15 +157,13 @@ export function AppointmentCard({
           onDragStart={onDragStart}
           onClick={onClick}
           className={cn(
-            'absolute rounded-xl border-l-4 p-2 cursor-pointer overflow-hidden',
-            'flex flex-col justify-between gap-[2px]',
+            'absolute rounded-xl border cursor-pointer overflow-hidden select-none',
             'shadow-sm hover:shadow-md transition-all duration-150',
             'hover:-translate-y-[1px] active:translate-y-0 active:shadow-sm',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
-            statusStyle.surface,
-            statusStyle.sideBorder,
-            statusStyle.text,
-            statusStyle.hoverBorder,
+            styles.background,
+            styles.border,
+            styles.text,
           )}
           style={{
             top: `${top}px`,
@@ -103,31 +172,33 @@ export function AppointmentCard({
             height: `${Math.max(height, 28)}px`,
           }}
         >
-          <div className="min-h-0 overflow-hidden">
+          <div className={cn('absolute left-0 top-0 h-full w-[3px] rounded-l-xl', styles.sidebar)} />
+
+          <div className="relative z-[1] h-full min-h-0 overflow-hidden flex flex-col justify-between gap-[2px] p-2 pl-3">
             <p className="text-sm font-semibold leading-tight line-clamp-2">
               {customerName}
             </p>
 
             {showFull ? (
-              <p className="mt-[2px] text-xs text-muted-foreground leading-tight truncate">
+              <p className="text-xs text-muted-foreground leading-tight truncate">
                 {serviceName}
               </p>
             ) : null}
 
             {showNameAndTime || showFull ? (
-              <p className="mt-[2px] text-[11px] opacity-70 leading-tight truncate">
+              <p className="text-[11px] opacity-70 leading-tight truncate">
                 {apt.start_time} - {apt.end_time}
               </p>
             ) : null}
-          </div>
 
-          {showFull ? (
-            <div className="flex items-center justify-between gap-1 overflow-hidden">
-              <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium truncate', statusStyle.badge)}>
-                {statusStyle.badgeText}
-              </span>
-            </div>
-          ) : null}
+            {showFull ? (
+              <div className="flex items-center justify-between gap-1 overflow-hidden">
+                <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium truncate', styles.badge)}>
+                  {styles.badgeText}
+                </span>
+              </div>
+            ) : null}
+          </div>
         </div>
       </TooltipTrigger>
       <TooltipContent side="right" className="max-w-xs">

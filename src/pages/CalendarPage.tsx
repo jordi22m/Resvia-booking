@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAvailabilityByUserId } from '@/hooks/use-availability';
 import { CalendarTimeGrid } from '@/components/CalendarTimeGrid';
+import { useCalendarBlocksByUserId, useCreateCalendarBlock } from '@/hooks/use-calendar-blocks';
 
 type ViewMode = 'day' | 'week';
 
@@ -46,6 +47,12 @@ export default function CalendarPage() {
   const { data: services } = useServices();
   const { data: staff } = useStaff();
   const { data: availability } = useAvailabilityByUserId(user?.id);
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const rangeStart = viewMode === 'day' ? currentDate : weekStart;
+  const rangeEnd = viewMode === 'day' ? currentDate : addDays(weekStart, 6);
+  const { data: calendarBlocks } = useCalendarBlocksByUserId(user?.id, rangeStart, rangeEnd);
+  const createCalendarBlock = useCreateCalendarBlock(user?.id, rangeStart, rangeEnd);
   const createAppointment = useCreateAppointment();
   const updateAppointment = useUpdateAppointment();
   const deleteAppointment = useDeleteAppointment();
@@ -60,9 +67,6 @@ export default function CalendarPage() {
     notes: '' 
   });
 
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  
   const navigate = (dir: number) => {
     setCurrentDate(prev => addDays(prev, dir * (viewMode === 'day' ? 1 : 7)));
   };
@@ -78,6 +82,46 @@ export default function CalendarPage() {
       staff_id: '',
     }));
     setDialogOpen(true);
+  };
+
+  const toLocalDateTime = (date: Date, hour: number, minute = 0, second = 0) => {
+    const base = format(date, 'yyyy-MM-dd');
+    return `${base} ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
+  };
+
+  const handleSlotAction = async (payload: { date: Date; hour: number; action: 'booking' | 'blocked' | 'closed' }) => {
+    if (payload.action === 'booking') {
+      handleSlotClick(payload.date, payload.hour);
+      return;
+    }
+
+    try {
+      if (payload.action === 'blocked') {
+        await createCalendarBlock.mutateAsync({
+          start_time: toLocalDateTime(payload.date, payload.hour, 0, 0),
+          end_time: toLocalDateTime(payload.date, payload.hour + 1, 0, 0),
+          type: 'blocked',
+          reason: 'Bloqueo manual desde calendario',
+        });
+        toast({ title: '✓ Horario bloqueado' });
+      }
+
+      if (payload.action === 'closed') {
+        await createCalendarBlock.mutateAsync({
+          start_time: toLocalDateTime(payload.date, 0, 0, 0),
+          end_time: toLocalDateTime(payload.date, 23, 59, 59),
+          type: 'closed',
+          reason: 'Día cerrado manualmente',
+        });
+        toast({ title: '✓ Día cerrado' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'No se pudo crear el bloqueo',
+        description: error?.message || 'Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleEditAppointment = (apt: any) => {
@@ -279,7 +323,9 @@ export default function CalendarPage() {
         currentDate={currentDate}
         viewMode={viewMode}
         appointments={appointments || []}
+        calendarBlocks={calendarBlocks || []}
         onSlotClick={handleSlotClick}
+        onSlotAction={handleSlotAction}
         onAppointmentClick={handleEditAppointment}
         availability={availability}
         customers={customers}

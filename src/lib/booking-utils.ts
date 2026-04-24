@@ -2,6 +2,7 @@ import { addMinutes, format, getDay, isBefore, isSameDay, startOfDay } from 'dat
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
 import type { AvailabilityException } from '@/hooks/use-availability-exceptions';
+import type { CalendarBlock } from '@/hooks/use-calendar-blocks';
 
 export interface TimeSlot {
   time: string;
@@ -36,6 +37,7 @@ export interface SlotQueryOptions extends BookingRules {
   now?: Date;
   serviceIntervalMinutes?: number | null;
   exceptions?: AvailabilityException[];
+  calendarBlocks?: CalendarBlock[];
 }
 
 const DEFAULT_RULES: Required<Omit<BookingRules, 'timezone'>> = {
@@ -167,6 +169,55 @@ function getContainingWindow(
   });
 }
 
+function parseCalendarBlockDate(value: string): Date | null {
+  if (!value) return null;
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function getDayCalendarBlocks(
+  date: Date,
+  calendarBlocks?: CalendarBlock[]
+): CalendarBlock[] {
+  if (!calendarBlocks?.length) return [];
+
+  const dayStart = startOfDay(date);
+  const dayEnd = addMinutes(dayStart, 24 * 60);
+
+  return calendarBlocks.filter((block) => {
+    const blockStart = parseCalendarBlockDate(block.start_time);
+    const blockEnd = parseCalendarBlockDate(block.end_time);
+    if (!blockStart || !blockEnd) return false;
+    return blockStart < dayEnd && blockEnd > dayStart;
+  });
+}
+
+function hasClosedDayBlock(date: Date, calendarBlocks?: CalendarBlock[]): boolean {
+  return getDayCalendarBlocks(date, calendarBlocks).some((block) => block.type === 'closed');
+}
+
+function hasCalendarBlockCollision(
+  date: Date,
+  requestedStartMinutes: number,
+  requestedEndMinutes: number,
+  calendarBlocks?: CalendarBlock[]
+): boolean {
+  const dayStart = startOfDay(date);
+  const requestStartDate = addMinutes(dayStart, requestedStartMinutes);
+  const requestEndDate = addMinutes(dayStart, requestedEndMinutes);
+
+  return getDayCalendarBlocks(date, calendarBlocks)
+    .filter((block) => block.type === 'blocked' || block.type === 'closed')
+    .some((block) => {
+      const blockStart = parseCalendarBlockDate(block.start_time);
+      const blockEnd = parseCalendarBlockDate(block.end_time);
+      if (!blockStart || !blockEnd) return false;
+      return requestStartDate < blockEnd && requestEndDate > blockStart;
+    });
+}
+
 function getSlotFitMetrics(
   dayAvailabilities: Availability[],
   appointments: Appointment[],
@@ -256,6 +307,10 @@ function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): bool
   const dateStr = format(date, 'yyyy-MM-dd');
   const dayException = exceptions.find(e => e.exception_date === dateStr);
   if (dayException?.is_closed) {
+    return false;
+  }
+
+  if (hasClosedDayBlock(date, options?.calendarBlocks)) {
     return false;
   }
 
@@ -494,6 +549,10 @@ export function isTimeSlotAvailable(
   });
 
   if (hasCollision) {
+    return false;
+  }
+
+  if (hasCalendarBlockCollision(date, requestedStartMinutes, requestedEndMinutes, options?.calendarBlocks)) {
     return false;
   }
 
