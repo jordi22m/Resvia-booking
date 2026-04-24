@@ -14,6 +14,7 @@ import BookingLinkPage from "@/pages/BookingLinkPage";
 import ReportsPage from "@/pages/ReportsPage";
 import WebhooksPage from "@/pages/WebhooksPage";
 import SettingsPage from "@/pages/SettingsPage";
+import ImportCsvPage from "@/pages/ImportCsvPage";
 import BookingPage from "@/pages/BookingPage";
 import BookingCancelPage from "@/pages/BookingCancelPage";
 import BookingReschedulePage from "@/pages/BookingReschedulePage";
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/booking-link" element={<ProtectedApp><BookingLinkPage /></ProtectedApp>} />
             <Route path="/reports" element={<ProtectedApp><ReportsPage /></ProtectedApp>} />
             <Route path="/webhooks" element={<ProtectedApp><WebhooksPage /></ProtectedApp>} />
+            <Route path="/imports" element={<ProtectedApp><ImportCsvPage /></ProtectedApp>} />
             <Route path="/settings" element={<ProtectedApp><SettingsPage /></ProtectedApp>} />
 
             <Route path="*" element={<NotFound />} />

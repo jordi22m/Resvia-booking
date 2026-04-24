@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Scissors, Users, Settings, Link2, BarChart3,
-  Webhook, Bell, Menu, X, ChevronLeft
+  Webhook, Bell, Menu, X, ChevronLeft, FileUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useProfile } from '@/hooks/use-profile';
@@ -17,6 +17,7 @@ const navItems = [
   { path: '/booking-link', label: 'Link de Reserva', icon: Link2 },
   { path: '/reports', label: 'Reportes', icon: BarChart3 },
   { path: '/webhooks', label: 'Automatizaciones', icon: Webhook },
+  { path: '/imports', label: 'Importar CSV', icon: FileUp },
   { path: '/settings', label: 'Configuración', icon: Settings },
 ];
 
