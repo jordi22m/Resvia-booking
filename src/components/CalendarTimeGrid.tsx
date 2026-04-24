@@ -1,9 +1,9 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { AlertCircle, Clock } from 'lucide-react';
+import { AppointmentCard } from '@/components/AppointmentCard';
 
 interface Appointment {
   id: string;
@@ -42,27 +42,40 @@ function getAppointmentStatusClasses(status?: string) {
   switch (status) {
     case 'confirmed':
       return {
-        bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-        border: 'border-l-emerald-500',
+        surface: 'bg-emerald-500/20 dark:bg-emerald-500/20',
+        sideBorder: 'border-l-emerald-600 dark:border-l-emerald-400',
+        hoverBorder: 'hover:ring-1 hover:ring-emerald-400/60',
         badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
-        text: 'text-emerald-900 dark:text-emerald-100',
+        text: 'text-emerald-950 dark:text-emerald-100',
         badgeText: 'Confirmada',
       };
     case 'cancelled':
+    case 'canceled':
       return {
-        bg: 'bg-red-50 dark:bg-red-950/30',
-        border: 'border-l-red-500',
+        surface: 'bg-red-500/20 dark:bg-red-500/20',
+        sideBorder: 'border-l-red-600 dark:border-l-red-400',
+        hoverBorder: 'hover:ring-1 hover:ring-red-400/60',
         badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-        text: 'text-red-900 dark:text-red-100',
+        text: 'text-red-950 dark:text-red-100',
         badgeText: 'Cancelada',
+      };
+    case 'completed':
+      return {
+        surface: 'bg-sky-500/20 dark:bg-sky-500/20',
+        sideBorder: 'border-l-sky-600 dark:border-l-sky-400',
+        hoverBorder: 'hover:ring-1 hover:ring-sky-400/60',
+        badge: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
+        text: 'text-sky-950 dark:text-sky-100',
+        badgeText: 'Completada',
       };
     case 'pending':
     default:
       return {
-        bg: 'bg-amber-50 dark:bg-amber-950/30',
-        border: 'border-l-amber-500',
+        surface: 'bg-amber-500/20 dark:bg-amber-500/20',
+        sideBorder: 'border-l-amber-600 dark:border-l-amber-400',
+        hoverBorder: 'hover:ring-1 hover:ring-amber-400/60',
         badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
-        text: 'text-amber-900 dark:text-amber-100',
+        text: 'text-amber-950 dark:text-amber-100',
         badgeText: 'Pendiente',
       };
   }
@@ -109,105 +122,6 @@ function getAppointmentLayout(appts: Appointment[]) {
 
   const totalColumns = columns.length;
   return layoutItems.map(item => ({ ...item, totalColumns }));
-}
-
-function AppointmentBlock({
-  apt,
-  top,
-  left,
-  width,
-  height,
-  statusStyle,
-  customer,
-  service,
-  staff,
-  onClick,
-  onDragStart,
-}: {
-  apt: Appointment & { column: number; totalColumns: number };
-  top: number;
-  left: string;
-  width: string;
-  height: number;
-  statusStyle: ReturnType<typeof getAppointmentStatusClasses>;
-  customer?: any;
-  service?: any;
-  staff?: any;
-  onClick: () => void;
-  onDragStart?: (e: React.DragEvent) => void;
-}) {
-  const showServiceName = height >= 40;
-  const showTime = height >= 32;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          draggable={true}
-          onDragStart={onDragStart}
-          onClick={onClick}
-          className={cn(
-            'absolute rounded-lg p-2 cursor-pointer overflow-hidden transition-all hover:shadow-lg hover:scale-[1.02] border-l-4 select-none',
-            statusStyle.bg,
-            statusStyle.border,
-            statusStyle.text,
-          )}
-          style={{
-            top: `${top}px`,
-            left,
-            width,
-            height: `${Math.max(height, 40)}px`,
-            lineHeight: '1.25rem',
-          }}
-        >
-          <div className="space-y-0.5">
-            <p className="font-semibold text-sm truncate leading-tight">{customer?.name || 'Cliente'}</p>
-            {showServiceName && (
-              <p className="text-xs opacity-75 truncate">{service?.name || 'Servicio'}</p>
-            )}
-            {showTime && (
-              <div className="flex items-center gap-0.5 text-xs opacity-60 pt-0.5">
-                <Clock className="h-3 w-3" />
-                <span>{apt.start_time}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1 pt-1 flex-wrap">
-              <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium', statusStyle.badge)}>
-                {statusStyle.badgeText}
-              </span>
-            </div>
-          </div>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="right" className="space-y-2">
-        <div className="grid gap-2 text-sm">
-          <div>
-            <span className="font-medium">Cliente:</span> {customer?.name || 'Cliente'}
-          </div>
-          <div>
-            <span className="font-medium">Servicio:</span> {service?.name || 'Sin servicio'}
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            <span>{apt.start_time} - {apt.end_time}</span>
-          </div>
-          <div>
-            <span className="font-medium">Estado:</span> {statusStyle.badgeText}
-          </div>
-          {staff?.name && (
-            <div>
-              <span className="font-medium">Profesional:</span> {staff.name}
-            </div>
-          )}
-          {apt.notes && (
-            <div>
-              <span className="font-medium">Notas:</span> {apt.notes}
-            </div>
-          )}
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
 }
 
 function TimeGridColumn({
@@ -286,7 +200,7 @@ function TimeGridColumn({
             const left = `calc(${(100 / Math.max(apt.totalColumns, 1)) * apt.column}% + 4px)`;
 
             return (
-              <AppointmentBlock
+              <AppointmentCard
                 key={apt.id}
                 apt={apt}
                 top={top}
@@ -294,9 +208,9 @@ function TimeGridColumn({
                 width={width}
                 height={height}
                 statusStyle={statusStyle}
-                customer={customer}
-                service={service}
-                staff={member}
+                customerName={customer?.name || 'Cliente'}
+                serviceName={service?.name || 'Servicio'}
+                staffName={member?.name}
                 onClick={() => onAppointmentClick(apt)}
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = 'move';
