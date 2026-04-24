@@ -1,6 +1,7 @@
 import { addMinutes, format, getDay, isBefore, isSameDay, startOfDay } from 'date-fns';
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
+import type { AvailabilityException } from '@/hooks/use-availability-exceptions';
 
 export interface TimeSlot {
   time: string;
@@ -34,6 +35,7 @@ export interface SlotQueryOptions extends BookingRules {
   staffId?: string | null;
   now?: Date;
   serviceIntervalMinutes?: number | null;
+  exceptions?: AvailabilityException[];
 }
 
 const DEFAULT_RULES: Required<Omit<BookingRules, 'timezone'>> = {
@@ -209,6 +211,36 @@ function getSlotFitMetrics(
   };
 }
 
+/**
+ * Get availability windows for a date, considering exceptions
+ * If exception overrides hours, use those instead of normal availability
+ */
+function getDayAvailabilitiesWithExceptions(
+  availability: Availability[],
+  dayOfWeek: number,
+  selectedDate: Date,
+  staffId?: string | null,
+  exceptions?: AvailabilityException[]
+): Availability[] {
+  // Check if date has an exception that overrides normal availability
+  const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  const dayException = exceptions?.find(e => e.exception_date === dateStr);
+
+  // If exception has custom hours, use only those
+  if (dayException && !dayException.is_closed && dayException.start_time && dayException.end_time) {
+    return [
+      {
+        ...dayException,
+        day_of_week: dayOfWeek,
+        is_active: true,
+      } as Availability,
+    ];
+  }
+
+  // Otherwise use normal day-of-week availability
+  return getDayAvailabilities(availability, dayOfWeek, staffId);
+}
+
 function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): boolean {
   const now = options?.now ?? new Date();
   const rules = normalizeRules(options);
@@ -216,6 +248,14 @@ function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): bool
   const nowDayStart = startOfDay(now);
 
   if (isBefore(dayStart, nowDayStart)) {
+    return false;
+  }
+
+  // Check if date is completely blocked by exception
+  const exceptions = options?.exceptions ?? [];
+  const dateStr = format(date, 'yyyy-MM-dd');
+  const dayException = exceptions.find(e => e.exception_date === dateStr);
+  if (dayException?.is_closed) {
     return false;
   }
 
@@ -293,7 +333,13 @@ export function generateTimeSlots(
   const rules = normalizeRules(options);
   const interval = Math.max(5, options?.serviceIntervalMinutes || rules.slotMinutes);
   const dayOfWeek = getDay(selectedDate);
-  const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
+  const dayAvailabilities = getDayAvailabilitiesWithExceptions(
+    availability,
+    dayOfWeek,
+    selectedDate,
+    options?.staffId,
+    options?.exceptions
+  );
   if (dayAvailabilities.length === 0) {
     return [];
   }

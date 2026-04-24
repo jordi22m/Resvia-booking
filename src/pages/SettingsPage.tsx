@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { isPushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import { AvailabilitySettings } from '@/components/AvailabilitySettings';
+import { AvailabilityExceptionsSettings } from '@/components/AvailabilityExceptionsSettings';
 import type { TablesUpdate } from '@/integrations/supabase/types';
 
 type ProfileSettingsForm = {
@@ -373,6 +374,8 @@ export default function SettingsPage() {
       </Card>
 
       <AvailabilitySettings />
+
+      <AvailabilityExceptionsSettings />
 
       <Card>
         <CardHeader><CardTitle className="text-base">Notificaciones</CardTitle></CardHeader>

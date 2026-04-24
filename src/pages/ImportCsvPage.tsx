@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Upload, Loader2, CheckCircle2, AlertCircle, Clock3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useProfile } from '@/hooks/use-profile';
 import { supabase } from '@/lib/supabase';
 import {
@@ -64,6 +65,51 @@ type ImportJobInfo = {
 
 const IMPORT_JOB_STORAGE_KEY = 'resvia_import_job_id';
 
+function isValidDateValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') {
+    return true;
+  }
+
+  const asDate = new Date(String(value));
+  return !Number.isNaN(asDate.getTime());
+}
+
+function validateRowLocally(rawPayload: Record<string, unknown>, rowNumber: number): ImportValidateRow {
+  const errors: string[] = [];
+
+  const name = rawPayload?.name;
+  if (typeof name !== 'string' || name.trim().length === 0) {
+    errors.push('Name is required and must be a string');
+  }
+
+  const phone = rawPayload?.phone;
+  if (typeof phone !== 'string' || phone.trim().length === 0) {
+    errors.push('Phone is required');
+  } else {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 9) {
+      errors.push('Phone must contain at least 9 digits');
+    }
+  }
+
+  const date = rawPayload?.date;
+  if (!isValidDateValue(date)) {
+    errors.push('Date must be a valid date');
+  }
+
+  return {
+    row_number: rowNumber,
+    is_valid: errors.length === 0,
+    first_error: errors[0] ?? null,
+    raw_payload: rawPayload,
+  };
+}
+
+function toInputValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
 function getJobStatusMeta(status?: string) {
   switch (status) {
     case 'importing':
@@ -117,11 +163,22 @@ export default function ImportCsvPage() {
   const canUpload = Boolean(selectedFile) && Boolean(profile?.id) && !uploading;
   const canPreview = Boolean(jobId) && !previewLoading;
   const canValidate = Boolean(jobId) && !validating;
-  const canApply = Boolean(jobId) && !applying;
+  const hasValidationExecuted = Boolean(validation);
+  const validRowsCount = validation?.summary.valid_rows ?? 0;
+  const canApply = hasValidationExecuted && validRowsCount > 0 && !applying;
+  const invalidRowsCount = validation?.summary.invalid_rows ?? 0;
 
   const previewColumns = preview?.columns ?? [];
 
   const validationRowsForTable = useMemo(() => (validation?.rows ?? []).slice(0, 50), [validation]);
+  const invalidRowsForTable = useMemo(
+    () => validationRowsForTable.filter((row) => !row.is_valid),
+    [validationRowsForTable],
+  );
+  const validRowsForTable = useMemo(
+    () => validationRowsForTable.filter((row) => row.is_valid),
+    [validationRowsForTable],
+  );
   const statusMeta = useMemo(() => getJobStatusMeta(jobInfo?.status), [jobInfo?.status]);
   const formattedCreatedAt = useMemo(() => {
     if (!jobInfo?.created_at) return '-';
@@ -310,6 +367,88 @@ export default function ImportCsvPage() {
     }
   };
 
+  const handleDownloadInvalidCsv = () => {
+    if (!validation) return;
+
+    const invalidRows = validation.rows.filter((row) => !row.is_valid);
+    if (invalidRows.length === 0) return;
+
+    const escapeCsv = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const headers = ['row_number', 'error_message', 'original_data'];
+
+    const lines = [headers.join(',')];
+    for (const row of invalidRows) {
+      lines.push([
+        String(row.row_number),
+        escapeCsv(row.first_error ?? ''),
+        escapeCsv(JSON.stringify(row.raw_payload ?? {})),
+      ].join(','));
+    }
+
+    const csvContent = lines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `invalid_rows_${jobId ?? 'import'}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleInvalidFieldChange = (
+    rowNumber: number,
+    field: 'name' | 'phone' | 'date',
+    value: string,
+  ) => {
+    setValidation((prev) => {
+      if (!prev) return prev;
+
+      const updatedRows = prev.rows.map((row) => {
+        if (row.row_number !== rowNumber) return row;
+
+        return {
+          ...row,
+          raw_payload: {
+            ...row.raw_payload,
+            [field]: value,
+          },
+        };
+      });
+
+      return {
+        ...prev,
+        rows: updatedRows,
+      };
+    });
+  };
+
+  const handleRevalidateRow = (rowNumber: number) => {
+    setValidation((prev) => {
+      if (!prev) return prev;
+
+      const updatedRows = prev.rows.map((row) => {
+        if (row.row_number !== rowNumber) return row;
+        return validateRowLocally(row.raw_payload ?? {}, row.row_number);
+      });
+
+      const validRows = updatedRows.filter((row) => row.is_valid).length;
+      const invalidRows = updatedRows.length - validRows;
+
+      return {
+        ...prev,
+        rows: updatedRows,
+        summary: {
+          ...prev.summary,
+          total_rows: updatedRows.length,
+          valid_rows: validRows,
+          invalid_rows: invalidRows,
+        },
+      };
+    });
+  };
+
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-6xl mx-auto">
       <div>
@@ -452,51 +591,110 @@ export default function ImportCsvPage() {
                 <div className="rounded border p-2 text-destructive">Invalid: {validation.summary.invalid_rows}</div>
               </div>
 
+              <div className="space-y-2">
+                <Button onClick={handleApply} disabled={!canApply}>
+                  {applying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {applying ? 'Importing...' : 'Import valid data'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadInvalidCsv}
+                  disabled={invalidRowsCount === 0}
+                >
+                  Download invalid rows CSV
+                </Button>
+                {validRowsCount === 0 ? (
+                  <p className="text-sm text-muted-foreground">No valid rows to import</p>
+                ) : null}
+              </div>
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>First error</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invalidRowsForTable.map((row) => (
+                      <TableRow key={row.row_number} className="bg-destructive/10">
+                        <TableCell>{row.row_number}</TableCell>
+                        <TableCell>
+                          <Input
+                            value={toInputValue(row.raw_payload?.name)}
+                            onChange={(event) => handleInvalidFieldChange(row.row_number, 'name', event.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={toInputValue(row.raw_payload?.phone)}
+                            onChange={(event) => handleInvalidFieldChange(row.row_number, 'phone', event.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={toInputValue(row.raw_payload?.date)}
+                            onChange={(event) => handleInvalidFieldChange(row.row_number, 'date', event.target.value)}
+                          />
+                        </TableCell>
+                        <TableCell>{row.first_error ?? '-'}</TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="outline" onClick={() => handleRevalidateRow(row.row_number)}>
+                            Revalidate row
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {invalidRowsForTable.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                          No invalid rows in current view
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </div>
+
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>#</TableHead>
                       <TableHead>Estado</TableHead>
-                      <TableHead>First error</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {validationRowsForTable.map((row) => (
-                      <TableRow key={row.row_number} className={row.is_valid ? '' : 'bg-destructive/10'}>
+                    {validRowsForTable.map((row) => (
+                      <TableRow key={`valid-${row.row_number}`}>
                         <TableCell>{row.row_number}</TableCell>
                         <TableCell>
-                          {row.is_valid ? (
-                            <span className="inline-flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> Válida</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-destructive"><AlertCircle className="h-4 w-4" /> Inválida</span>
-                          )}
+                          <span className="inline-flex items-center gap-1 text-success"><CheckCircle2 className="h-4 w-4" /> Válida</span>
                         </TableCell>
-                        <TableCell>{row.first_error ?? '-'}</TableCell>
                       </TableRow>
                     ))}
+                    {validRowsForTable.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-sm text-muted-foreground">
+                          No valid rows in current view
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
                   </TableBody>
                 </Table>
               </div>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Paso 4: Aplicar importación</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button onClick={handleApply} disabled={!canApply}>
-            {applying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Import valid data
-          </Button>
-
-          {applyResult ? (
-            <div className="grid sm:grid-cols-2 gap-2 text-sm">
-              <div className="rounded border p-3 text-success">imported_rows: {applyResult.imported_rows}</div>
-              <div className="rounded border p-3 text-muted-foreground">skipped_rows: {applyResult.skipped_rows}</div>
+              {applyResult ? (
+                <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                  <div className="rounded border p-3 text-success">imported_rows: {applyResult.imported_rows}</div>
+                  <div className="rounded border p-3 text-muted-foreground">skipped_rows: {applyResult.skipped_rows}</div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </CardContent>

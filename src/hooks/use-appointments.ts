@@ -224,16 +224,70 @@ export function useCreateAppointment() {
 }
 
 export function useUpdateAppointment() {
+  const { user, session } = useAuth();
   const qc = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ id, ...updates }: TablesUpdate<'appointments'> & { id: string }) => {
+      const { data: previousAppointment, error: previousError } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (previousError) throw previousError;
+
       const { data, error } = await supabase
         .from('appointments')
         .update(updates)
         .eq('id', id)
         .select()
         .single();
+
       if (error) throw error;
+
+      const nextAppointment = data as Appointment & { public_id?: string | null };
+      const prevAppointment = previousAppointment as Appointment | null;
+
+      const isRescheduled = Boolean(
+        prevAppointment && (
+          (updates.date !== undefined && updates.date !== prevAppointment.date) ||
+          (updates.start_time !== undefined && updates.start_time !== prevAppointment.start_time) ||
+          (updates.end_time !== undefined && updates.end_time !== prevAppointment.end_time)
+        ),
+      );
+
+      if (isRescheduled && user?.id && session) {
+        const payload = {
+          ...buildWebhookPayload({
+            event: 'booking.rescheduled',
+            business: { id: user.id, name: 'Business', slug: null },
+            appointment: {
+              id: nextAppointment.id,
+              public_id: nextAppointment.public_id ?? null,
+              status: nextAppointment.status,
+              date: nextAppointment.date,
+              start_time: nextAppointment.start_time,
+              end_time: nextAppointment.end_time,
+            },
+            customer: { id: nextAppointment.customer_id ?? null },
+            service: { id: nextAppointment.service_id ?? null },
+          }),
+          previous_datetime: {
+            date: prevAppointment?.date ?? null,
+            start_time: prevAppointment?.start_time ?? null,
+            end_time: prevAppointment?.end_time ?? null,
+          },
+          updated_datetime: {
+            date: nextAppointment.date,
+            start_time: nextAppointment.start_time,
+            end_time: nextAppointment.end_time,
+          },
+        };
+
+        void triggerWebhook('booking.rescheduled', payload, user.id, session);
+      }
+
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['appointments'] }),

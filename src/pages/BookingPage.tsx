@@ -15,8 +15,9 @@ import type { Profile } from '@/hooks/use-profile';
 import { useServicesByUserId, type Service } from '@/hooks/use-services';
 import { useStaffByUserId, type StaffMember } from '@/hooks/use-staff';
 import { useAvailabilityBySlug, type Availability } from '@/hooks/use-availability';
+import { useAvailabilityExceptionsBySlug, type AvailabilityException } from '@/hooks/use-availability-exceptions';
 import { useAppointmentsBySlugAndDate, useAppointmentsBySlugAndDateRange, type Appointment } from '@/hooks/use-appointments';
-import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable } from '@/lib/booking-utils';
+import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable, getBestAvailableSlots } from '@/lib/booking-utils';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -47,6 +48,21 @@ function toUserBookingError(errorMessage: string | null): string {
   if (!errorMessage) return 'No pudimos completar tu solicitud. Intenta nuevamente.';
 
   const lowerMessage = errorMessage.toLowerCase();
+  
+  // Backend validation errors (new)
+  if (lowerMessage.includes('anticipacion') || lowerMessage.includes('tiempo de anticipacion')) {
+    return 'Debes reservar con más tiempo de anticipación. Por favor elige una fecha más adelante.';
+  }
+
+  if (lowerMessage.includes('excede') || lowerMessage.includes('limite permitido') || lowerMessage.includes('maximo')) {
+    return 'La fecha que seleccionaste está muy lejos. Por favor elige una fecha más próxima.';
+  }
+
+  if (lowerMessage.includes('fin de semana')) {
+    return 'Las reservas no están permitidas en fin de semana. Por favor elige otro día.';
+  }
+
+  // Existing error handling
   if (lowerMessage.includes('token') || lowerMessage.includes('no encontrado') || lowerMessage.includes('not found')) {
     return 'Este enlace de reprogramacion no es valido o ya no esta disponible.';
   }
@@ -148,11 +164,11 @@ function TimeSlotButton({
   isSelected,
   onSelect,
 }: {
-  slot: { time: string };
+  slot: { time: string; isRecommended?: boolean; isPrimaryRecommended?: boolean };
   isSelected: boolean;
   onSelect: (time: string) => void;
 }) {
-  return (
+  const buttonContent = (
     <button
       type="button"
       onClick={() => onSelect(slot.time)}
@@ -161,17 +177,48 @@ function TimeSlotButton({
         'min-h-[76px] focus:outline-none focus:ring-2 focus:ring-primary/20',
         isSelected
           ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-          : 'border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md'
+          : slot.isPrimaryRecommended
+            ? 'border-amber-400/90 bg-amber-50/90 shadow-[0_0_0_2px_rgba(245,158,11,0.22)] hover:-translate-y-0.5 hover:border-amber-500 hover:bg-amber-50 hover:shadow-lg dark:bg-amber-950/30 dark:border-amber-700/80'
+            : slot.isRecommended
+            ? 'border-emerald-300/80 bg-emerald-50/80 shadow-[0_0_0_1px_rgba(16,185,129,0.15)] hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md dark:bg-emerald-950/20 dark:border-emerald-700/70'
+            : 'border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md'
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-lg font-semibold tracking-tight">{slot.time}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-semibold tracking-tight">{slot.time}</span>
+          {slot.isPrimaryRecommended && !isSelected ? (
+            <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:border-amber-700 dark:bg-amber-900/45 dark:text-amber-200">
+              🔥 Mejor opción
+            </span>
+          ) : null}
+          {!slot.isPrimaryRecommended && slot.isRecommended && !isSelected ? (
+            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+              ⭐ Recomendado
+            </span>
+          ) : null}
+        </div>
         {isSelected ? <Check className="h-4 w-4 shrink-0" /> : <Clock className="h-4 w-4 shrink-0 opacity-50 group-hover:opacity-80" />}
       </div>
       <p className={cn('mt-1 text-xs', isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
-        Disponible para reservar
+        {slot.isPrimaryRecommended || slot.isRecommended
+          ? 'Recomendado para aprovechar mejor el tiempo del negocio'
+          : 'Disponible para reservar'}
       </p>
     </button>
+  );
+
+  if (!slot.isRecommended) {
+    return buttonContent;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{buttonContent}</TooltipTrigger>
+      <TooltipContent>
+        <p>Este horario evita huecos muertos en la agenda</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -302,6 +349,7 @@ export default function BookingPage() {
   const { data: services, isLoading: loadingServices, error: servicesError } = useServicesByUserId(profile?.user_id);
   const { data: staff } = useStaffByUserId(profile?.user_id);
   const { data: availability, isLoading: loadingAvailability, error: availabilityError } = useAvailabilityBySlug(slug);
+  const { data: exceptions, isLoading: loadingExceptions } = useAvailabilityExceptionsBySlug(slug);
   const { toast } = useToast();
 
   // ── Debug logs ──────────────────────────────────────────────────────────────
@@ -316,6 +364,7 @@ export default function BookingPage() {
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [isAutoSelectedTime, setIsAutoSelectedTime] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [confirmationData, setConfirmationData] = useState<BookingConfirmationData | null>(null);
@@ -351,7 +400,8 @@ export default function BookingPage() {
     minGapMinutes: profile?.min_gap_minutes ?? 0,
     serviceIntervalMinutes: service?.interval_minutes ?? null,
     staffId: selectedStaff,
-  }), [profile, service, selectedStaff]);
+    exceptions: exceptions ?? [],
+  }), [profile, service, selectedStaff, exceptions]);
   const requirePhone = profile?.require_phone ?? true;
   const requireEmail = profile?.require_email ?? false;
 
@@ -368,17 +418,52 @@ export default function BookingPage() {
     endOfMonth(currentMonth)
   );
 
-  // Generate available time slots for selected date
+  // Generate available time slots preserving all valid options and highlighting recommendations
   const availableTimeSlots = useMemo(() => {
     if (!availability || !dayAppointments || !selectedDate || !service) return [];
 
-    return generateTimeSlots(
+    const allSlots = generateTimeSlots(
       availability,
       dayAppointments,
       selectedDate,
       service.duration || 30,
       bookingRules
     );
+
+    const optimizedSlots = getBestAvailableSlots(
+      availability,
+      dayAppointments,
+      selectedDate,
+      service.duration || 30,
+      bookingRules
+    );
+
+    // Keep recommendations concise for better decision clarity.
+    const recommendedSlots = optimizedSlots.slice(0, 3);
+    const primaryCount = Math.min(recommendedSlots.length, recommendedSlots.length > 1 ? 2 : 1);
+    const primaryRecommendedSlots = new Set(recommendedSlots.slice(0, primaryCount));
+
+    const recommendationOrder = new Map(recommendedSlots.map((time, index) => [time, index]));
+
+    return allSlots
+      .map((slot) => ({
+        ...slot,
+        isRecommended: recommendationOrder.has(slot.time),
+        isPrimaryRecommended: primaryRecommendedSlots.has(slot.time),
+      }))
+      .sort((a, b) => {
+        const aRank = recommendationOrder.get(a.time);
+        const bRank = recommendationOrder.get(b.time);
+
+        if (aRank !== undefined && bRank !== undefined) {
+          return aRank - bRank;
+        }
+
+        if (aRank !== undefined) return -1;
+        if (bRank !== undefined) return 1;
+
+        return a.time.localeCompare(b.time);
+      });
   }, [availability, dayAppointments, selectedDate, service, bookingRules]);
 
   // Generate calendar days
@@ -432,6 +517,35 @@ export default function BookingPage() {
 
   const previewTimeSlots = useMemo(() => availableTimeSlots.slice(0, 6), [availableTimeSlots]);
   const hasUrgency = !loadingDayAppointments && availableTimeSlots.length > 0 && availableTimeSlots.length <= 3;
+
+  useEffect(() => {
+    if (loadingDayAppointments) return;
+
+    if (availableTimeSlots.length === 0) {
+      if (selectedTime) {
+        setSelectedTime(null);
+      }
+      setIsAutoSelectedTime(false);
+      return;
+    }
+
+    const isCurrentSelectionValid = selectedTime
+      ? availableTimeSlots.some((slot) => slot.time === selectedTime)
+      : false;
+
+    if (isCurrentSelectionValid) {
+      return;
+    }
+
+    const topRecommendedSlot = availableTimeSlots.find(
+      (slot) => slot.isPrimaryRecommended || slot.isRecommended
+    );
+
+    if (!topRecommendedSlot) return;
+
+    setSelectedTime(topRecommendedSlot.time);
+    setIsAutoSelectedTime(true);
+  }, [availableTimeSlots, loadingDayAppointments, selectedTime]);
 
   const changeMonth = (direction: 'next' | 'prev') => {
     setMonthDirection(direction);
@@ -688,8 +802,10 @@ export default function BookingPage() {
                   )}
                   onClick={() => {
                     setSelectedService(svc.id);
+                    setSelectedStaff(null);
                     setSelectedDate(null);
                     setSelectedTime(null);
+                    setIsAutoSelectedTime(false);
                     setCurrentMonth(new Date());
                   }}
                 >
@@ -736,10 +852,48 @@ export default function BookingPage() {
               </Card>
             ) : null}
 
+            {selectedService && staff && staff.length > 0 ? (
+              <div className="space-y-3">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">Elige un profesional</h3>
+                  <p className="text-sm text-muted-foreground">Selecciona quien realizara tu servicio</p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 max-w-2xl mx-auto">
+                  {staff.map(member => {
+                    const isSelected = selectedStaff === member.id;
+                    return (
+                      <Card
+                        key={member.id}
+                        className={cn(
+                          "cursor-pointer transition-all hover:shadow-sm",
+                          isSelected ? 'ring-2 ring-primary shadow-md' : ''
+                        )}
+                        onClick={() => setSelectedStaff(member.id)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-foreground truncate">{member.name}</h4>
+                              {member.specialization && (
+                                <p className="text-xs text-muted-foreground truncate">{member.specialization}</p>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <Check className="h-4 w-4 text-primary shrink-0" />
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex justify-center">
               <Button
                 size="lg"
-                disabled={!selectedService || !hasBookableServices || !hasAvailabilityConfigured}
+                disabled={!selectedService || !hasBookableServices || !hasAvailabilityConfigured || (staff && staff.length > 0 && !selectedStaff)}
                 onClick={() => setStep('calendar')}
                 className="px-8"
               >
@@ -830,6 +984,7 @@ export default function BookingPage() {
                         onSelect={(nextDate) => {
                           setSelectedDate(nextDate);
                           setSelectedTime(null);
+                          setIsAutoSelectedTime(false);
                         }}
                       />
                     );
@@ -881,13 +1036,22 @@ export default function BookingPage() {
                     ) : null}
 
                     {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                      <p className="mb-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        Estas horas ayudan a optimizar la agenda del negocio
+                      </p>
+                    ) : null}
+
+                    {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
                       <div className="grid grid-cols-2 gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
                         {previewTimeSlots.map((slot) => (
                           <TimeSlotButton
                             key={slot.time}
                             slot={slot}
                             isSelected={selectedTime === slot.time}
-                            onSelect={(time) => setSelectedTime(time)}
+                            onSelect={(time) => {
+                              setSelectedTime(time);
+                              setIsAutoSelectedTime(false);
+                            }}
                           />
                         ))}
                       </div>
@@ -956,6 +1120,14 @@ export default function BookingPage() {
 
                 {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
                   <div className="max-h-[420px] overflow-y-auto pr-1 scroll-smooth">
+                    <p className="mb-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                      Estas horas ayudan a optimizar la agenda del negocio
+                    </p>
+                    {selectedTime && isAutoSelectedTime ? (
+                      <div className="mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
+                        Seleccionado automáticamente
+                      </div>
+                    ) : null}
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
                       {availableTimeSlots.map(slot => (
                         <TimeSlotButton
@@ -964,6 +1136,7 @@ export default function BookingPage() {
                           isSelected={selectedTime === slot.time}
                           onSelect={(time) => {
                             setSelectedTime(time);
+                            setIsAutoSelectedTime(false);
                             toast({
                               title: 'Horario seleccionado',
                               description: `${time} (${service?.duration || 30} min)`
