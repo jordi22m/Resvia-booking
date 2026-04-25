@@ -3,9 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useAvailabilityByUserId } from '@/hooks/use-availability';
+import { useStaff } from '@/hooks/use-staff';
+import { StaffAvailabilitySettings } from './StaffAvailabilitySettings';
 import { supabase } from '@/lib/supabase';
 import type { TablesInsert } from '@/integrations/supabase/types';
 
@@ -31,6 +35,8 @@ export function AvailabilitySettings() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { data: availabilityData } = useAvailabilityByUserId(user?.id);
+  const { data: staffMembers } = useStaff();
 
   const getDefaultSchedule = () => {
     return Object.fromEntries(
@@ -199,112 +205,142 @@ export function AvailabilitySettings() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Disponibilidad</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            Cargando disponibilidad...
-          </div>
-        ) : null}
-        <p className="text-sm text-muted-foreground">
-          Configura manana y tarde de forma independiente para cada dia.
-        </p>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 px-2 font-medium">Día</th>
-                <th className="text-left py-2 px-2 font-medium">Mañana</th>
-                <th className="text-left py-2 px-2 font-medium">Tarde</th>
-              </tr>
-            </thead>
-            <tbody>
-              {DAYS.map(day => {
-                const daySchedule = availability[day.id] || {
-                  morning_active: false,
-                  afternoon_active: false,
-                  morning: { start: '09:00', end: '13:00' },
-                  afternoon: { start: '14:00', end: '18:00' }
-                };
-                return (
-                  <tr key={day.id} className="border-b hover:bg-secondary/50 transition-colors">
-                    <td className="py-3 px-2 font-medium text-foreground">{day.label}</td>
-                    <td className="py-3 px-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Checkbox
-                          checked={daySchedule.morning_active}
-                          onCheckedChange={() => toggleMorning(day.id)}
-                        />
-                        <span className="text-xs text-muted-foreground">Activa mañana</span>
-                      </div>
-                      {daySchedule.morning_active ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="time"
-                            value={daySchedule.morning?.start || '09:00'}
-                            onChange={e => updateMorningTime(day.id, 'start', e.target.value)}
-                            className="w-24 h-8 text-xs"
-                          />
-                          <span className="text-xs text-muted-foreground">-</span>
-                          <Input
-                            type="time"
-                            value={daySchedule.morning?.end || '13:00'}
-                            onChange={e => updateMorningTime(day.id, 'end', e.target.value)}
-                            className="w-24 h-8 text-xs"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Mañana cerrada</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Checkbox
-                          checked={daySchedule.afternoon_active}
-                          onCheckedChange={() => toggleAfternoon(day.id)}
-                        />
-                        <span className="text-xs text-muted-foreground">Activa tarde</span>
-                      </div>
-                      {daySchedule.afternoon_active ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="time"
-                            value={daySchedule.afternoon?.start || '14:00'}
-                            onChange={e => updateAfternoonTime(day.id, 'start', e.target.value)}
-                            className="w-24 h-8 text-xs"
-                          />
-                          <span className="text-xs text-muted-foreground">-</span>
-                          <Input
-                            type="time"
-                            value={daySchedule.afternoon?.end || '18:00'}
-                            onChange={e => updateAfternoonTime(day.id, 'end', e.target.value)}
-                            className="w-24 h-8 text-xs"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Tarde cerrada</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+    <div className="space-y-4">
+      <Tabs defaultValue="global" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="global">Disponibilidad general</TabsTrigger>
+          <TabsTrigger value="staff">Por trabajador</TabsTrigger>
+        </TabsList>
 
-        <Button size="sm" onClick={handleSaveAvailability} disabled={isSaving} translate="no">
-          <span className="inline-flex h-4 w-4 items-center justify-center">
-            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-          </span>
-          <span>Guardar disponibilidad</span>
-        </Button>
-      </CardContent>
-    </Card>
+        {/* Global availability tab */}
+        <TabsContent value="global">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Disponibilidad general</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Cargando disponibilidad...
+                </div>
+              ) : null}
+              <p className="text-sm text-muted-foreground">
+                Configura mañana y tarde de forma independiente para cada día. Esta será la disponibilidad por defecto cuando un trabajador no tenga horarios específicos.
+              </p>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2 font-medium">Día</th>
+                      <th className="text-left py-2 px-2 font-medium">Mañana</th>
+                      <th className="text-left py-2 px-2 font-medium">Tarde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DAYS.map(day => {
+                      const daySchedule = availability[day.id] || {
+                        morning_active: false,
+                        afternoon_active: false,
+                        morning: { start: '09:00', end: '13:00' },
+                        afternoon: { start: '14:00', end: '18:00' }
+                      };
+                      return (
+                        <tr key={day.id} className="border-b hover:bg-secondary/50 transition-colors">
+                          <td className="py-3 px-2 font-medium text-foreground">{day.label}</td>
+                          <td className="py-3 px-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Checkbox
+                                checked={daySchedule.morning_active}
+                                onCheckedChange={() => toggleMorning(day.id)}
+                              />
+                              <span className="text-xs text-muted-foreground">Activa mañana</span>
+                            </div>
+                            {daySchedule.morning_active ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="time"
+                                  value={daySchedule.morning?.start || '09:00'}
+                                  onChange={e => updateMorningTime(day.id, 'start', e.target.value)}
+                                  className="w-24 h-8 text-xs"
+                                />
+                                <span className="text-xs text-muted-foreground">-</span>
+                                <Input
+                                  type="time"
+                                  value={daySchedule.morning?.end || '13:00'}
+                                  onChange={e => updateMorningTime(day.id, 'end', e.target.value)}
+                                  className="w-24 h-8 text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Mañana cerrada</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Checkbox
+                                checked={daySchedule.afternoon_active}
+                                onCheckedChange={() => toggleAfternoon(day.id)}
+                              />
+                              <span className="text-xs text-muted-foreground">Activa tarde</span>
+                            </div>
+                            {daySchedule.afternoon_active ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="time"
+                                  value={daySchedule.afternoon?.start || '14:00'}
+                                  onChange={e => updateAfternoonTime(day.id, 'start', e.target.value)}
+                                  className="w-24 h-8 text-xs"
+                                />
+                                <span className="text-xs text-muted-foreground">-</span>
+                                <Input
+                                  type="time"
+                                  value={daySchedule.afternoon?.end || '18:00'}
+                                  onChange={e => updateAfternoonTime(day.id, 'end', e.target.value)}
+                                  className="w-24 h-8 text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Tarde cerrada</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <Button size="sm" onClick={handleSaveAvailability} disabled={isSaving} translate="no">
+                <span className="inline-flex h-4 w-4 items-center justify-center">
+                  {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                </span>
+                <span>Guardar disponibilidad general</span>
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Staff availability tab */}
+        <TabsContent value="staff">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Disponibilidad por trabajador</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StaffAvailabilitySettings
+                staffMembers={staffMembers}
+                availability={availabilityData}
+                onSave={() => {
+                  // Optionally refresh data
+                }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 

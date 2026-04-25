@@ -10,11 +10,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { StaffSelector } from '@/components/StaffSelector';
 import { useProfileBySlug } from '@/hooks/use-profile';
 import type { Profile } from '@/hooks/use-profile';
 import { useServicesByUserId, type Service } from '@/hooks/use-services';
 import { useStaffByUserId, type StaffMember } from '@/hooks/use-staff';
-import { useAvailabilityBySlug, type Availability } from '@/hooks/use-availability';
+import { useAvailabilityBySlug, useStaffAvailabilityBySlug, type Availability } from '@/hooks/use-availability';
 import { useAvailabilityExceptionsBySlug, type AvailabilityException } from '@/hooks/use-availability-exceptions';
 import { useAppointmentsBySlugAndDate, useAppointmentsBySlugAndDateRange, type Appointment } from '@/hooks/use-appointments';
 import { useCalendarBlocksBySlugAndDateRange, type CalendarBlock } from '@/hooks/use-calendar-blocks';
@@ -352,20 +353,8 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const rescheduleToken = searchParams.get('rescheduleToken')?.trim() || '';
   const isRescheduleFlow = Boolean(rescheduleToken);
-  const { data: profile, isLoading: loadingProfile, error: profileError } = useProfileBySlug(slug);
-  const { data: services, isLoading: loadingServices, error: servicesError } = useServicesByUserId(profile?.user_id);
-  const { data: staff } = useStaffByUserId(profile?.user_id);
-  const { data: availability, isLoading: loadingAvailability, error: availabilityError } = useAvailabilityBySlug(slug);
-  const { data: exceptions, isLoading: loadingExceptions } = useAvailabilityExceptionsBySlug(slug);
-  const { toast } = useToast();
-
-  // ── Debug logs ──────────────────────────────────────────────────────────────
-  useEffect(() => { console.log('[BookingPage] slug', slug); }, [slug]);
-  useEffect(() => { console.log('[BookingPage] profile', profile, 'error', profileError); }, [profile, profileError]);
-  useEffect(() => { console.log('[BookingPage] services', services, 'error', servicesError); }, [services, servicesError]);
-  useEffect(() => { console.log('[BookingPage] availability', availability, 'error', availabilityError); }, [availability, availabilityError]);
-  // ────────────────────────────────────────────────────────────────────────────
-
+  
+  // State hooks first
   const [step, setStep] = useState<Step>('service');
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
@@ -379,6 +368,30 @@ export default function BookingPage() {
   const [monthDirection, setMonthDirection] = useState<'next' | 'prev'>('next');
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const timeSectionRef = useRef<HTMLDivElement | null>(null);
+  
+  // Query hooks
+  const { data: profile, isLoading: loadingProfile, error: profileError } = useProfileBySlug(slug);
+  const { data: services, isLoading: loadingServices, error: servicesError } = useServicesByUserId(profile?.user_id);
+  const { data: staff } = useStaffByUserId(profile?.user_id);
+  
+  // Get availability based on whether staff is selected
+  const { data: globalAvailability, isLoading: loadingGlobalAvailability, error: globalAvailabilityError } = useAvailabilityBySlug(slug);
+  const { data: staffAvailability, isLoading: loadingStaffAvailability, error: staffAvailabilityError } = useStaffAvailabilityBySlug(slug, selectedStaff || undefined);
+  
+  // Use staff availability if selected, otherwise use global
+  const availability = selectedStaff ? staffAvailability : globalAvailability;
+  const loadingAvailability = selectedStaff ? loadingStaffAvailability : loadingGlobalAvailability;
+  const availabilityError = selectedStaff ? staffAvailabilityError : globalAvailabilityError;
+  
+  const { data: exceptions, isLoading: loadingExceptions } = useAvailabilityExceptionsBySlug(slug);
+  const { toast } = useToast();
+
+  // ── Debug logs ──────────────────────────────────────────────────────────────
+  useEffect(() => { console.log('[BookingPage] slug', slug); }, [slug]);
+  useEffect(() => { console.log('[BookingPage] profile', profile, 'error', profileError); }, [profile, profileError]);
+  useEffect(() => { console.log('[BookingPage] services', services, 'error', servicesError); }, [services, servicesError]);
+  useEffect(() => { console.log('[BookingPage] availability', availability, 'error', availabilityError); }, [availability, availabilityError]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   // Monitor timeout: si tarda > 8s cargando, mostrar error
   useEffect(() => {
@@ -872,41 +885,13 @@ export default function BookingPage() {
             ) : null}
 
             {selectedService && staff && staff.length > 0 ? (
-              <div className="space-y-3">
-                <div className="text-center">
-                  <h3 className="text-lg font-semibold text-foreground mb-1">Elige un profesional</h3>
-                  <p className="text-sm text-muted-foreground">Selecciona quien realizara tu servicio</p>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 max-w-2xl mx-auto">
-                  {staff.map(member => {
-                    const isSelected = selectedStaff === member.id;
-                    return (
-                      <Card
-                        key={member.id}
-                        className={cn(
-                          "cursor-pointer transition-all hover:shadow-sm",
-                          isSelected ? 'ring-2 ring-primary shadow-md' : ''
-                        )}
-                        onClick={() => setSelectedStaff(member.id)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-foreground truncate">{member.name}</h4>
-                              {member.specialization && (
-                                <p className="text-xs text-muted-foreground truncate">{member.specialization}</p>
-                              )}
-                            </div>
-                            {isSelected && (
-                              <Check className="h-4 w-4 text-primary shrink-0" />
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
+              <StaffSelector
+                staff={staff}
+                selectedStaffId={selectedStaff}
+                onSelectStaff={setSelectedStaff}
+                isLoading={false}
+                allowAnyStaff={true}
+              />
             ) : null}
 
             <div className="flex justify-center">

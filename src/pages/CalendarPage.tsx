@@ -39,6 +39,7 @@ export default function CalendarPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedStaffFilter, setSelectedStaffFilter] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { user } = useAuth();
@@ -277,6 +278,22 @@ export default function CalendarPage() {
 
             {/* Controls */}
             <div className="flex items-center gap-2">
+              {/* Staff Filter */}
+              {staff && staff.length > 0 && (
+                <select
+                  value={selectedStaffFilter || ''}
+                  onChange={e => setSelectedStaffFilter(e.target.value || null)}
+                  className="px-3 py-1.5 text-sm border border-slate-300/80 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                >
+                  <option value="">Todos los trabajadores</option>
+                  {staff.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <div className="flex border border-slate-300/80 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-100/80 dark:bg-slate-800/70 shadow-sm">
                 <button 
                   onClick={() => setViewMode('day')} 
@@ -323,7 +340,10 @@ export default function CalendarPage() {
       <CalendarTimeGrid
         currentDate={currentDate}
         viewMode={viewMode}
-        appointments={appointments || []}
+        appointments={(appointments || []).filter(apt => {
+          if (!selectedStaffFilter) return true;
+          return apt.staff_id === selectedStaffFilter;
+        })}
         calendarBlocks={calendarBlocks || []}
         onSlotClick={handleSlotClick}
         onSlotAction={handleSlotAction}
