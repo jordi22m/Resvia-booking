@@ -171,7 +171,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
 
   const updateDayTime = (
     dayId: string,
-    block: 'morning' | 'afternoon',
+    block: 'morning' | 'afternoon' | 'break',
     field: 'start' | 'end',
     value: string,
   ) => {
@@ -201,14 +201,35 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
     const ext = selectedPhoto.name.split('.').pop() || 'jpg';
     const path = `staff-avatars/${staffId}.${ext}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, selectedPhoto, { upsert: true });
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, selectedPhoto, { upsert: true });
 
-    if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    return data?.publicUrl || null;
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      return data?.publicUrl || null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo subir la foto';
+
+      // No bloqueamos el guardado del horario/datos si falla el storage.
+      if (message.toLowerCase().includes('bucket') && message.toLowerCase().includes('not found')) {
+        toast({
+          title: 'Foto no guardada',
+          description: 'No existe el bucket avatars en producción. Se guardaron los demás cambios.',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
+      toast({
+        title: 'Foto no guardada',
+        description: message,
+        variant: 'destructive',
+      });
+      return null;
+    }
   };
 
   const validateAvailability = (): string | null => {
@@ -459,7 +480,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
             </p>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[820px] text-sm">
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2 px-2 font-medium">Dia</th>
@@ -487,19 +508,19 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
                           </div>
 
                           {daySchedule.morning_active ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Input
                                 type="time"
                                 value={daySchedule.morning.start}
                                 onChange={(e) => updateDayTime(day.id, 'morning', 'start', e.target.value)}
-                                className="w-24 h-8 text-xs"
+                                className="w-20 h-8 text-xs"
                               />
                               <span className="text-xs text-muted-foreground">-</span>
                               <Input
                                 type="time"
                                 value={daySchedule.morning.end}
                                 onChange={(e) => updateDayTime(day.id, 'morning', 'end', e.target.value)}
-                                className="w-24 h-8 text-xs"
+                                className="w-20 h-8 text-xs"
                               />
                             </div>
                           ) : (
@@ -519,19 +540,19 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
                           </div>
 
                           {daySchedule.break_active ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Input
                                 type="time"
                                 value={daySchedule.break.start}
                                 onChange={(e) => updateDayTime(day.id, 'break', 'start', e.target.value)}
-                                className="w-24 h-8 text-xs"
+                                className="w-20 h-8 text-xs"
                               />
                               <span className="text-xs text-muted-foreground">-</span>
                               <Input
                                 type="time"
                                 value={daySchedule.break.end}
                                 onChange={(e) => updateDayTime(day.id, 'break', 'end', e.target.value)}
-                                className="w-24 h-8 text-xs"
+                                className="w-20 h-8 text-xs"
                               />
                             </div>
                           ) : (
@@ -551,19 +572,19 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
                           </div>
 
                           {daySchedule.afternoon_active ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Input
                                 type="time"
                                 value={daySchedule.afternoon.start}
                                 onChange={(e) => updateDayTime(day.id, 'afternoon', 'start', e.target.value)}
-                                className="w-24 h-8 text-xs"
+                                className="w-20 h-8 text-xs"
                               />
                               <span className="text-xs text-muted-foreground">-</span>
                               <Input
                                 type="time"
                                 value={daySchedule.afternoon.end}
                                 onChange={(e) => updateDayTime(day.id, 'afternoon', 'end', e.target.value)}
-                                className="w-24 h-8 text-xs"
+                                className="w-20 h-8 text-xs"
                               />
                             </div>
                           ) : (
