@@ -5,16 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, Plus, Pencil, Trash2, Bell, BellOff } from 'lucide-react';
 import { useProfile, useUpdateProfile } from '@/hooks/use-profile';
-import { useStaff, useCreateStaff, useUpdateStaff, useDeleteStaff, type StaffMember } from '@/hooks/use-staff';
+import { useStaff, useDeleteStaff, type StaffMember } from '@/hooks/use-staff';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { isPushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import { AvailabilitySettings } from '@/components/AvailabilitySettings';
 import { AvailabilityExceptionsSettings } from '@/components/AvailabilityExceptionsSettings';
+import { StaffEditDialog } from '@/components/StaffEditDialog';
 import type { TablesUpdate } from '@/integrations/supabase/types';
 
 type ProfileSettingsForm = {
@@ -42,8 +42,6 @@ export default function SettingsPage() {
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useUpdateProfile();
   const { data: staff } = useStaff();
-  const createStaff = useCreateStaff();
-  const updateStaff = useUpdateStaff();
   const deleteStaff = useDeleteStaff();
   const { signOut, user } = useAuth();
   const { toast } = useToast();
@@ -71,7 +69,6 @@ export default function SettingsPage() {
   });
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
-  const [staffForm, setStaffForm] = useState({ name: '', role: '', email: '', phone: '', color: '#60a5fa' });
   const [pushOn, setPushOn] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
 
@@ -163,26 +160,13 @@ export default function SettingsPage() {
     }
   };
 
-  const openCreateStaff = () => { setEditingStaff(null); setStaffForm({ name: '', role: '', email: '', phone: '', color: '#60a5fa' }); setStaffDialogOpen(true); };
-  const openEditStaff = (s: StaffMember) => {
-    setEditingStaff(s);
-    setStaffForm({ name: s.name, role: s.role || '', email: s.email || '', phone: s.phone || '', color: s.color || '#60a5fa' });
+  const openCreateStaff = () => {
+    setEditingStaff(null);
     setStaffDialogOpen(true);
   };
-
-  const handleSaveStaff = async () => {
-    if (!staffForm.name.trim()) return;
-    try {
-      if (editingStaff) {
-        await updateStaff.mutateAsync({ id: editingStaff.id, ...staffForm });
-      } else {
-        await createStaff.mutateAsync(staffForm);
-      }
-      toast({ title: editingStaff ? 'Miembro actualizado' : 'Miembro creado' });
-      setStaffDialogOpen(false);
-    } catch (e: unknown) {
-      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Error inesperado', variant: 'destructive' });
-    }
+  const openEditStaff = (s: StaffMember) => {
+    setEditingStaff(s);
+    setStaffDialogOpen(true);
   };
 
   const handleDeleteStaff = async (id: string) => {
@@ -356,9 +340,17 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground py-4">No hay miembros del equipo.</p>
             ) : (staff || []).map(member => (
               <div key={member.id} className="flex items-center gap-4 py-3">
-                <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold" style={{ backgroundColor: `${member.color || '#60a5fa'}20`, color: member.color || '#60a5fa' }}>
-                  {member.name.split(' ').map(n => n[0]).join('')}
-                </div>
+                {member.avatar_url ? (
+                  <img
+                    src={member.avatar_url}
+                    alt={member.name}
+                    className="h-9 w-9 rounded-full object-cover border"
+                  />
+                ) : (
+                  <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-semibold" style={{ backgroundColor: `${member.color || '#60a5fa'}20`, color: member.color || '#60a5fa' }}>
+                    {member.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                )}
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">{member.name}</p>
                   <p className="text-xs text-muted-foreground">{member.role}</p>
@@ -426,51 +418,11 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={staffDialogOpen} onOpenChange={setStaffDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingStaff ? 'Editar miembro' : 'Nuevo miembro'}</DialogTitle>
-            <DialogDescription className="sr-only">
-              {editingStaff ? 'Edita los datos del miembro del equipo seleccionado.' : 'Crea un nuevo miembro del equipo.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nombre *</Label>
-              <Input value={staffForm.name} onChange={e => setStaffForm(p => ({ ...p, name: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Rol</Label>
-              <Input value={staffForm.role} onChange={e => setStaffForm(p => ({ ...p, role: e.target.value }))} placeholder="Ej: Estilista Senior" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input value={staffForm.email} onChange={e => setStaffForm(p => ({ ...p, email: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Teléfono</Label>
-                <Input value={staffForm.phone} onChange={e => setStaffForm(p => ({ ...p, phone: e.target.value }))} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Color</Label>
-              <Input type="color" value={staffForm.color} onChange={e => setStaffForm(p => ({ ...p, color: e.target.value }))} className="h-10 w-20" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStaffDialogOpen(false)} translate="no">
-              <span>Cancelar</span>
-            </Button>
-            <Button onClick={handleSaveStaff} disabled={createStaff.isPending || updateStaff.isPending} translate="no">
-              <span className="inline-flex h-4 w-4 items-center justify-center">
-                {(createStaff.isPending || updateStaff.isPending) && <Loader2 className="h-4 w-4 animate-spin" />}
-              </span>
-              <span>{editingStaff ? 'Guardar' : 'Crear'}</span>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <StaffEditDialog
+        open={staffDialogOpen}
+        onOpenChange={setStaffDialogOpen}
+        staff={editingStaff}
+      />
     </div>
   );
 }

@@ -13,7 +13,6 @@ import { useAppointments } from '@/hooks/use-appointments';
 const navItems = [
   { path: '/calendar', label: 'Calendario', icon: Calendar },
   { path: '/dashboard', label: 'Panel', icon: LayoutDashboard },
-  { path: '/my-schedule', label: 'Mi Horario', icon: CalendarPlus2 },
   { path: '/services', label: 'Servicios', icon: Scissors },
   { path: '/customers', label: 'Clientes', icon: Users },
   { path: '/booking-link', label: 'Link de Reserva', icon: Link2 },

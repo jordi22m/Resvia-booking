@@ -122,3 +122,64 @@ export function useCreateCalendarBlock(userId: string | undefined, startDate: Da
     },
   });
 }
+
+export function useUpdateCalendarBlock(userId: string | undefined, startDate: Date, endDate: Date) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      start_time: string;
+      end_time: string;
+      type: CalendarBlockType;
+      reason?: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from('calendar_blocks' as any)
+        .update({
+          business_id: userId,
+          start_time: input.start_time,
+          end_time: input.end_time,
+          type: input.type,
+          reason: input.reason || null,
+        })
+        .eq('id', input.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return data as CalendarBlock;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar-blocks', 'owner'] });
+      qc.invalidateQueries({ queryKey: ['calendar-blocks', 'public'] });
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['appointments', 'by-slug-date'] });
+      qc.invalidateQueries({ queryKey: ['appointments', 'by-slug-date-range'] });
+    },
+  });
+}
+
+export function useDeleteCalendarBlock(userId: string | undefined, startDate: Date, endDate: Date) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('calendar_blocks' as any)
+        .delete()
+        .eq('id', id)
+        .eq('business_id', userId);
+
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar-blocks', 'owner'] });
+      qc.invalidateQueries({ queryKey: ['calendar-blocks', 'public'] });
+      qc.invalidateQueries({ queryKey: ['appointments'] });
+      qc.invalidateQueries({ queryKey: ['appointments', 'by-slug-date'] });
+      qc.invalidateQueries({ queryKey: ['appointments', 'by-slug-date-range'] });
+    },
+  });
+}

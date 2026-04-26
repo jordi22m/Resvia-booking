@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, Loader2, Calendar, Clock, User, Briefcase, FileText, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Loader2, Calendar, Clock, User, Briefcase, FileText, AlertCircle, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAvailabilityByUserId } from '@/hooks/use-availability';
 import { CalendarTimeGrid } from '@/components/CalendarTimeGrid';
-import { useCalendarBlocksByUserId, useCreateCalendarBlock } from '@/hooks/use-calendar-blocks';
+import { useCalendarBlocksByUserId, useCreateCalendarBlock, useDeleteCalendarBlock, useUpdateCalendarBlock, type CalendarBlock, type CalendarBlockType } from '@/hooks/use-calendar-blocks';
 
 type ViewMode = 'day' | 'week';
 
@@ -39,6 +39,15 @@ export default function CalendarPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [selectedBlock, setSelectedBlock] = useState<CalendarBlock | null>(null);
+  const [blockForm, setBlockForm] = useState({
+    date: format(new Date(), 'yyyy-MM-dd'),
+    start_time: '09:00',
+    end_time: '10:00',
+    type: 'blocked' as CalendarBlockType,
+    reason: '',
+  });
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -54,6 +63,8 @@ export default function CalendarPage() {
   const rangeEnd = viewMode === 'day' ? currentDate : addDays(weekStart, 6);
   const { data: calendarBlocks } = useCalendarBlocksByUserId(user?.id, rangeStart, rangeEnd);
   const createCalendarBlock = useCreateCalendarBlock(user?.id, rangeStart, rangeEnd);
+  const updateCalendarBlock = useUpdateCalendarBlock(user?.id, rangeStart, rangeEnd);
+  const deleteCalendarBlock = useDeleteCalendarBlock(user?.id, rangeStart, rangeEnd);
   const createAppointment = useCreateAppointment();
   const updateAppointment = useUpdateAppointment();
   const deleteAppointment = useDeleteAppointment();
@@ -89,6 +100,16 @@ export default function CalendarPage() {
     const base = format(date, 'yyyy-MM-dd');
     return `${base} ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:${second.toString().padStart(2, '0')}`;
   };
+
+  const splitDateTime = (value: string) => {
+    const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+    const dateObj = new Date(normalized);
+    const date = format(dateObj, 'yyyy-MM-dd');
+    const time = format(dateObj, 'HH:mm');
+    return { date, time };
+  };
+
+  const composeDateTime = (date: string, time: string) => `${date} ${time}:00`;
 
   const handleSlotAction = async (payload: { date: Date; hour: number; action: 'booking' | 'blocked' | 'closed' }) => {
     if (payload.action === 'booking') {
@@ -136,6 +157,73 @@ export default function CalendarPage() {
       notes: apt.notes || '',
     });
     setDialogOpen(true);
+  };
+
+  const handleEditBlock = (block: CalendarBlock) => {
+    const start = splitDateTime(block.start_time);
+    const end = splitDateTime(block.end_time);
+    setSelectedBlock(block);
+    setBlockForm({
+      date: start.date,
+      start_time: start.time,
+      end_time: end.time,
+      type: block.type,
+      reason: block.reason || '',
+    });
+    setBlockDialogOpen(true);
+  };
+
+  const handleSaveBlock = async () => {
+    if (!selectedBlock) return;
+
+    try {
+      const startDateTime = composeDateTime(blockForm.date, blockForm.start_time);
+      const endDateTime = composeDateTime(blockForm.date, blockForm.end_time);
+
+      if (blockForm.start_time >= blockForm.end_time) {
+        toast({
+          title: 'Horario invalido',
+          description: 'La hora de fin debe ser mayor que la hora de inicio',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await updateCalendarBlock.mutateAsync({
+        id: selectedBlock.id,
+        start_time: startDateTime,
+        end_time: endDateTime,
+        type: blockForm.type,
+        reason: blockForm.reason || null,
+      });
+
+      toast({ title: '✓ Bloqueo actualizado' });
+      setBlockDialogOpen(false);
+      setSelectedBlock(null);
+    } catch (error: any) {
+      toast({
+        title: 'No se pudo actualizar el bloqueo',
+        description: error?.message || 'Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteBlock = async () => {
+    if (!selectedBlock) return;
+
+    try {
+      await deleteCalendarBlock.mutateAsync(selectedBlock.id);
+      toast({ title: '✓ Bloqueo eliminado' });
+      setBlockDialogOpen(false);
+      setSelectedBlock(null);
+    } catch (error: any) {
+      toast({
+        title: 'No se pudo eliminar el bloqueo',
+        description: error?.message || 'Intenta nuevamente.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleSaveAppointment = async () => {
@@ -348,11 +436,98 @@ export default function CalendarPage() {
         onSlotClick={handleSlotClick}
         onSlotAction={handleSlotAction}
         onAppointmentClick={handleEditAppointment}
+        onBlockClick={handleEditBlock}
         availability={availability}
         customers={customers}
         services={services}
         staff={staff}
       />
+
+      <Dialog open={blockDialogOpen} onOpenChange={(open) => {
+        setBlockDialogOpen(open);
+        if (!open) setSelectedBlock(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar bloqueo</DialogTitle>
+            <DialogDescription>
+              Modifica o elimina un bloqueo de horario o de dia.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <select
+                value={blockForm.type}
+                onChange={(e) => setBlockForm((p) => ({ ...p, type: e.target.value as CalendarBlockType }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="blocked">Bloqueo de horario</option>
+                <option value="closed">Dia cerrado</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Fecha</Label>
+              <Input
+                type="date"
+                value={blockForm.date}
+                onChange={(e) => setBlockForm((p) => ({ ...p, date: e.target.value }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Inicio</Label>
+                <Input
+                  type="time"
+                  value={blockForm.start_time}
+                  onChange={(e) => setBlockForm((p) => ({ ...p, start_time: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fin</Label>
+                <Input
+                  type="time"
+                  value={blockForm.end_time}
+                  onChange={(e) => setBlockForm((p) => ({ ...p, end_time: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Motivo</Label>
+              <Textarea
+                rows={2}
+                value={blockForm.reason}
+                onChange={(e) => setBlockForm((p) => ({ ...p, reason: e.target.value }))}
+                placeholder="Ej: descanso, comida, reunion, dia libre"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="justify-between gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteBlock}
+              disabled={deleteCalendarBlock.isPending || updateCalendarBlock.isPending}
+            >
+              {deleteCalendarBlock.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Quitar bloqueo
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveBlock}
+              disabled={updateCalendarBlock.isPending || deleteCalendarBlock.isPending}
+            >
+              {updateCalendarBlock.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Enhanced Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
