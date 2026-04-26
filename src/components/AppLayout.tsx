@@ -47,6 +47,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const businessName = profile?.business_name || 'Mi Negocio';
+  const businessLogo = profile?.logo_url || '';
+  const businessInitials = businessName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'MN';
   const ownerName = profile?.owner_name || user?.email || '';
   const ownerInitial = ownerName ? ownerName.charAt(0).toUpperCase() : 'U';
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
@@ -172,8 +179,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {!collapsed && (
           <div className="px-4 py-3 border-b border-sidebar-border">
-            <p className="text-xs text-muted-foreground">Espacio de trabajo</p>
-            <p className="text-sm font-medium text-foreground truncate">{businessName}</p>
+            <div className="flex items-center gap-3">
+              {businessLogo ? (
+                <img
+                  src={businessLogo}
+                  alt={businessName}
+                  className="h-9 w-9 rounded-full border object-cover"
+                />
+              ) : (
+                <div className="h-9 w-9 rounded-full border bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                  {businessInitials}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Espacio de trabajo</p>
+                <p className="text-sm font-medium text-foreground truncate">{businessName}</p>
+              </div>
+            </div>
           </div>
         )}
 

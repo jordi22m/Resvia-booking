@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Plus, Pencil, Trash2, Bell, BellOff } from 'lucide-react';
+import { Loader2, Plus, Pencil, Trash2, Bell, BellOff, Upload, ImageOff } from 'lucide-react';
 import { useProfile, useUpdateProfile } from '@/hooks/use-profile';
 import { useStaff, useDeleteStaff, type StaffMember } from '@/hooks/use-staff';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,7 @@ import { AvailabilitySettings } from '@/components/AvailabilitySettings';
 import { AvailabilityExceptionsSettings } from '@/components/AvailabilityExceptionsSettings';
 import { StaffEditDialog } from '@/components/StaffEditDialog';
 import type { TablesUpdate } from '@/integrations/supabase/types';
+import { supabase } from '@/lib/supabase';
 
 type ProfileSettingsForm = {
   business_name: string;
@@ -71,6 +72,11 @@ export default function SettingsPage() {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [pushOn, setPushOn] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState('');
+  const [selectedLogo, setSelectedLogo] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [logoWarning, setLogoWarning] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { isSubscribed().then(setPushOn); }, []);
 
@@ -116,8 +122,63 @@ export default function SettingsPage() {
         public_booking_title: profile.public_booking_title || '',
         public_booking_description: profile.public_booking_description || '',
       });
+      setLogoPreviewUrl(profile.logo_url || '');
+      setSelectedLogo(null);
+      setRemoveLogo(false);
+      setLogoWarning(null);
     }
   }, [profile]);
+
+  const handleSelectLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Imagen demasiado grande',
+        description: 'El logo no puede superar 5MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedLogo(file);
+    setRemoveLogo(false);
+    setLogoWarning(null);
+    setLogoPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const uploadLogoIfNeeded = async (): Promise<{ logoUrl?: string | null; warning: string | null }> => {
+    if (removeLogo) {
+      return { logoUrl: null, warning: null };
+    }
+
+    if (!selectedLogo || !user?.id) {
+      return { warning: null };
+    }
+
+    const ext = selectedLogo.name.split('.').pop() || 'jpg';
+    const path = `business-logos/${user.id}.${ext}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, selectedLogo, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      return { logoUrl: data?.publicUrl || null, warning: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo subir el logo';
+      if (message.toLowerCase().includes('bucket') && message.toLowerCase().includes('not found')) {
+        return {
+          warning: 'No existe el bucket avatars en producción. El resto de cambios sí se guardó.',
+        };
+      }
+      return { warning: message };
+    }
+  };
 
   const handleSaveProfile = async () => {
     try {
@@ -153,8 +214,25 @@ export default function SettingsPage() {
         public_booking_title: form.public_booking_title,
         public_booking_description: form.public_booking_description,
       };
+
+      const { logoUrl, warning } = await uploadLogoIfNeeded();
+      if (logoUrl !== undefined) {
+        updates.logo_url = logoUrl;
+      }
+
       await updateProfile.mutateAsync(updates);
-      toast({ title: 'Perfil actualizado' });
+
+      if (warning) {
+        setLogoWarning(warning);
+        toast({
+          title: 'Perfil actualizado con aviso',
+          description: warning,
+          variant: 'destructive',
+        });
+      } else {
+        setLogoWarning(null);
+        toast({ title: 'Perfil actualizado' });
+      }
     } catch (e: unknown) {
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'Error inesperado', variant: 'destructive' });
     }
@@ -187,6 +265,62 @@ export default function SettingsPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Perfil del negocio</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium text-foreground">Logo del negocio</p>
+            <div className="mt-3 flex flex-wrap items-center gap-4">
+              {logoPreviewUrl ? (
+                <img
+                  src={logoPreviewUrl}
+                  alt={form.business_name || 'Logo del negocio'}
+                  className="h-16 w-16 rounded-full object-cover border"
+                />
+              ) : (
+                <div className="h-16 w-16 rounded-full border bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                  {(form.business_name || 'NG').split(' ').filter(Boolean).slice(0, 2).map((n) => n[0]?.toUpperCase()).join('') || 'NG'}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleSelectLogo}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-1.5" />
+                    Subir logo
+                  </Button>
+                  {logoPreviewUrl && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setRemoveLogo(true);
+                        setSelectedLogo(null);
+                        setLogoPreviewUrl('');
+                        setLogoWarning(null);
+                      }}
+                    >
+                      <ImageOff className="h-4 w-4 mr-1.5" />
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">JPG o PNG, máximo 5MB</p>
+                {logoWarning && <p className="text-xs text-destructive">{logoWarning}</p>}
+              </div>
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-foreground">Nombre del negocio *</label>

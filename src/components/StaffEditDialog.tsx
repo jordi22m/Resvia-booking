@@ -68,6 +68,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const [photoUploadWarning, setPhotoUploadWarning] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -97,6 +98,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
     if (!open) return;
 
     setSelectedPhoto(null);
+    setPhotoUploadWarning(null);
     setPreviewUrl(staff?.avatar_url || '');
     setForm({
       name: staff?.name || '',
@@ -191,12 +193,15 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setPhotoUploadWarning(null);
     setSelectedPhoto(file);
     setPreviewUrl(URL.createObjectURL(file));
   };
 
-  const uploadPhotoIfNeeded = async (staffId: string): Promise<string | null> => {
-    if (!selectedPhoto) return null;
+  const uploadPhotoIfNeeded = async (
+    staffId: string,
+  ): Promise<{ url: string | null; warning: string | null }> => {
+    if (!selectedPhoto) return { url: null, warning: null };
 
     const ext = selectedPhoto.name.split('.').pop() || 'jpg';
     const path = `staff-avatars/${staffId}.${ext}`;
@@ -209,26 +214,18 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      return data?.publicUrl || null;
+      return { url: data?.publicUrl || null, warning: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo subir la foto';
 
-      // No bloqueamos el guardado del horario/datos si falla el storage.
       if (message.toLowerCase().includes('bucket') && message.toLowerCase().includes('not found')) {
-        toast({
-          title: 'Foto no guardada',
-          description: 'No existe el bucket avatars en producción. Se guardaron los demás cambios.',
-          variant: 'destructive',
-        });
-        return null;
+        return {
+          url: null,
+          warning: 'No existe el bucket avatars en producción. Se guardaron los demás cambios.',
+        };
       }
 
-      toast({
-        title: 'Foto no guardada',
-        description: message,
-        variant: 'destructive',
-      });
-      return null;
+      return { url: null, warning: message };
     }
   };
 
@@ -307,7 +304,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
             active: true,
           });
 
-      const newAvatarUrl = await uploadPhotoIfNeeded(savedStaff.id);
+      const { url: newAvatarUrl, warning: uploadWarning } = await uploadPhotoIfNeeded(savedStaff.id);
       if (newAvatarUrl) {
         await updateStaff.mutateAsync({ id: savedStaff.id, avatar_url: newAvatarUrl });
       }
@@ -354,7 +351,17 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
         if (error) throw error;
       }
 
-      toast({ title: staff ? 'Miembro actualizado' : 'Miembro creado' });
+      if (uploadWarning) {
+        setPhotoUploadWarning(uploadWarning);
+        toast({
+          title: staff ? 'Miembro actualizado con aviso' : 'Miembro creado con aviso',
+          description: uploadWarning,
+          variant: 'destructive',
+        });
+      } else {
+        setPhotoUploadWarning(null);
+        toast({ title: staff ? 'Miembro actualizado' : 'Miembro creado' });
+      }
       onOpenChange(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo guardar los cambios';
@@ -420,6 +427,10 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
                   <p className="text-xs text-muted-foreground">JPG o PNG, maximo 5MB</p>
                 </div>
               </div>
+
+              {photoUploadWarning && (
+                <p className="mt-2 text-xs text-destructive">{photoUploadWarning}</p>
+              )}
             </div>
 
             <div>
@@ -476,126 +487,120 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
 
           <TabsContent value="availability" className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Define manana y tarde con horas independientes. El descanso se representa con el hueco entre fin de manana e inicio de tarde.
+              Horario compacto por dia. Activa solo los bloques que uses y ajusta sus horas.
             </p>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-2 font-medium">Dia</th>
-                    <th className="text-left py-2 px-2 font-medium">Manana</th>
-                    <th className="text-left py-2 px-2 font-medium">Descanso</th>
-                    <th className="text-left py-2 px-2 font-medium">Tarde</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {DAYS.map((day) => {
-                    const daySchedule = availability[day.id];
-                    return (
-                      <tr key={day.id} className="border-b">
-                        <td className="py-3 px-2 font-medium">{day.label}</td>
+            <div className="space-y-3">
+              {DAYS.map((day) => {
+                const daySchedule = availability[day.id];
+                return (
+                  <div key={day.id} className="rounded-lg border p-3 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="font-medium text-sm">{day.label}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-xs">
+                        <label className="inline-flex items-center gap-2 text-muted-foreground">
+                          <Checkbox
+                            checked={daySchedule.morning_active}
+                            onCheckedChange={() =>
+                              updateDay(day.id, { morning_active: !daySchedule.morning_active })
+                            }
+                          />
+                          Manana
+                        </label>
 
-                        <td className="py-3 px-2 align-top">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Checkbox
-                              checked={daySchedule.morning_active}
-                              onCheckedChange={() =>
-                                updateDay(day.id, { morning_active: !daySchedule.morning_active })
-                              }
+                        <label className="inline-flex items-center gap-2 text-muted-foreground">
+                          <Checkbox
+                            checked={daySchedule.afternoon_active}
+                            onCheckedChange={() =>
+                              updateDay(day.id, { afternoon_active: !daySchedule.afternoon_active })
+                            }
+                          />
+                          Tarde
+                        </label>
+
+                        <label className="inline-flex items-center gap-2 text-muted-foreground">
+                          <Checkbox
+                            checked={daySchedule.break_active}
+                            onCheckedChange={() =>
+                              updateDay(day.id, { break_active: !daySchedule.break_active })
+                            }
+                          />
+                          Descanso
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {daySchedule.morning_active && (
+                        <div className="rounded-md border p-2 space-y-1">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Manana</p>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={daySchedule.morning.start}
+                              onChange={(e) => updateDayTime(day.id, 'morning', 'start', e.target.value)}
+                              className="h-8 text-xs"
                             />
-                            <span className="text-xs text-muted-foreground">Activa manana</span>
-                          </div>
-
-                          {daySchedule.morning_active ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Input
-                                type="time"
-                                value={daySchedule.morning.start}
-                                onChange={(e) => updateDayTime(day.id, 'morning', 'start', e.target.value)}
-                                className="w-20 h-8 text-xs"
-                              />
-                              <span className="text-xs text-muted-foreground">-</span>
-                              <Input
-                                type="time"
-                                value={daySchedule.morning.end}
-                                onChange={(e) => updateDayTime(day.id, 'morning', 'end', e.target.value)}
-                                className="w-20 h-8 text-xs"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Manana cerrada</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-2 align-top">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Checkbox
-                              checked={daySchedule.break_active}
-                              onCheckedChange={() =>
-                                updateDay(day.id, { break_active: !daySchedule.break_active })
-                              }
+                            <span className="text-xs text-muted-foreground">-</span>
+                            <Input
+                              type="time"
+                              value={daySchedule.morning.end}
+                              onChange={(e) => updateDayTime(day.id, 'morning', 'end', e.target.value)}
+                              className="h-8 text-xs"
                             />
-                            <span className="text-xs text-muted-foreground">Aplicar descanso</span>
                           </div>
+                        </div>
+                      )}
 
-                          {daySchedule.break_active ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Input
-                                type="time"
-                                value={daySchedule.break.start}
-                                onChange={(e) => updateDayTime(day.id, 'break', 'start', e.target.value)}
-                                className="w-20 h-8 text-xs"
-                              />
-                              <span className="text-xs text-muted-foreground">-</span>
-                              <Input
-                                type="time"
-                                value={daySchedule.break.end}
-                                onChange={(e) => updateDayTime(day.id, 'break', 'end', e.target.value)}
-                                className="w-20 h-8 text-xs"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Sin descanso</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-2 align-top">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Checkbox
-                              checked={daySchedule.afternoon_active}
-                              onCheckedChange={() =>
-                                updateDay(day.id, { afternoon_active: !daySchedule.afternoon_active })
-                              }
+                      {daySchedule.break_active && (
+                        <div className="rounded-md border p-2 space-y-1">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Descanso</p>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={daySchedule.break.start}
+                              onChange={(e) => updateDayTime(day.id, 'break', 'start', e.target.value)}
+                              className="h-8 text-xs"
                             />
-                            <span className="text-xs text-muted-foreground">Activa tarde</span>
+                            <span className="text-xs text-muted-foreground">-</span>
+                            <Input
+                              type="time"
+                              value={daySchedule.break.end}
+                              onChange={(e) => updateDayTime(day.id, 'break', 'end', e.target.value)}
+                              className="h-8 text-xs"
+                            />
                           </div>
+                        </div>
+                      )}
 
-                          {daySchedule.afternoon_active ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Input
-                                type="time"
-                                value={daySchedule.afternoon.start}
-                                onChange={(e) => updateDayTime(day.id, 'afternoon', 'start', e.target.value)}
-                                className="w-20 h-8 text-xs"
-                              />
-                              <span className="text-xs text-muted-foreground">-</span>
-                              <Input
-                                type="time"
-                                value={daySchedule.afternoon.end}
-                                onChange={(e) => updateDayTime(day.id, 'afternoon', 'end', e.target.value)}
-                                className="w-20 h-8 text-xs"
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Tarde cerrada</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      {daySchedule.afternoon_active && (
+                        <div className="rounded-md border p-2 space-y-1">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tarde</p>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={daySchedule.afternoon.start}
+                              onChange={(e) => updateDayTime(day.id, 'afternoon', 'start', e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                            <span className="text-xs text-muted-foreground">-</span>
+                            <Input
+                              type="time"
+                              value={daySchedule.afternoon.end}
+                              onChange={(e) => updateDayTime(day.id, 'afternoon', 'end', e.target.value)}
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {!daySchedule.morning_active && !daySchedule.afternoon_active && (
+                      <p className="text-xs text-muted-foreground">Dia sin disponibilidad.</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </TabsContent>
         </Tabs>
