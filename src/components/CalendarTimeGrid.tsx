@@ -259,7 +259,7 @@ function TimeGridColumn({
         ))}
 
         {/* Appointments */}
-        <TooltipProvider>
+        <TooltipProvider delayDuration={180} skipDelayDuration={80}>
           {layoutItems.map((apt) => {
             const visibleStart = 8 * 60;
             const visibleEnd = 21 * 60;
@@ -310,6 +310,7 @@ function TimeGridColumn({
                     : apt.block?.reason || (apt.kind === 'closed' ? 'Negocio cerrado' : 'No disponible')
                 }
                 staffName={isBooking ? member?.name : undefined}
+                accentColor={isBooking ? member?.color || undefined : undefined}
                 onClick={() => {
                   if (isBooking) {
                     onAppointmentClick(apt.appointment!);
