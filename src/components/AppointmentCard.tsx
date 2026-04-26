@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, Lock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -54,20 +54,20 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
       };
     case 'blocked':
       return {
-        background: 'bg-slate-300/75 dark:bg-slate-700/70 bg-[repeating-linear-gradient(-45deg,rgba(100,116,139,0.42)_0px,rgba(100,116,139,0.42)_6px,rgba(148,163,184,0.18)_6px,rgba(148,163,184,0.18)_12px)]',
-        border: 'border-slate-400 dark:border-slate-500',
-        sidebar: 'bg-slate-500 dark:bg-slate-300',
-        text: 'text-slate-900 dark:text-slate-100',
-        badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-100',
+        background: 'bg-slate-400/90 dark:bg-slate-700/90 bg-[repeating-linear-gradient(-45deg,rgba(71,85,105,0.55)_0px,rgba(71,85,105,0.55)_7px,rgba(148,163,184,0.24)_7px,rgba(148,163,184,0.24)_14px)]',
+        border: 'border-slate-500 dark:border-slate-400',
+        sidebar: 'bg-slate-700 dark:bg-slate-100',
+        text: 'text-slate-950 dark:text-slate-50',
+        badge: 'bg-slate-950/10 text-slate-800 dark:bg-white/10 dark:text-slate-50',
         badgeText: 'Bloqueado',
       };
     case 'closed':
       return {
-        background: 'bg-slate-800/90 dark:bg-slate-950/92',
+        background: 'bg-slate-900/96 dark:bg-black/95 bg-[repeating-linear-gradient(-45deg,rgba(15,23,42,0.92)_0px,rgba(15,23,42,0.92)_8px,rgba(51,65,85,0.9)_8px,rgba(51,65,85,0.9)_16px)]',
         border: 'border-slate-700 dark:border-slate-500',
-        sidebar: 'bg-slate-900 dark:bg-slate-200',
+        sidebar: 'bg-white dark:bg-slate-200',
         text: 'text-slate-100 dark:text-slate-100',
-        badge: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
+        badge: 'bg-white/10 text-slate-100 dark:bg-white/10 dark:text-slate-100',
         badgeText: 'Cerrado',
       };
     case 'pending':
@@ -100,6 +100,7 @@ interface AppointmentCardProps {
   customerName: string;
   serviceName: string;
   staffName?: string;
+  accentColor?: string;
   onClick: () => void;
   onDragStart?: (e: DragEvent<HTMLDivElement>) => void;
 }
@@ -114,6 +115,7 @@ export function AppointmentCard({
   customerName,
   serviceName,
   staffName,
+  accentColor,
   onClick,
   onDragStart,
 }: AppointmentCardProps) {
@@ -144,9 +146,12 @@ export function AppointmentCard({
     return 'full';
   }, [availableHeight]);
 
-  const showNameAndTime = density === 'medium';
+  const showCompact = density === 'compact';
   const showFull = density === 'full';
   const styles = useMemo(() => getAppointmentStyles(status), [status]);
+  const sidebarStyle = accentColor ? { backgroundColor: accentColor } : undefined;
+  const isBlockedState = status === 'blocked' || status === 'closed';
+  const blockTitle = status === 'closed' ? 'Cerrado' : 'Bloqueado';
 
   return (
     <Tooltip>
@@ -157,7 +162,7 @@ export function AppointmentCard({
           onDragStart={onDragStart}
           onClick={onClick}
           className={cn(
-            'absolute rounded-xl border cursor-pointer overflow-hidden select-none',
+            'absolute rounded-2xl border cursor-pointer overflow-hidden select-none',
             'shadow-sm hover:shadow-md transition-all duration-150',
             'hover:-translate-y-[1px] hover:saturate-110 active:translate-y-0 active:shadow-sm',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25',
@@ -169,27 +174,49 @@ export function AppointmentCard({
             top: `${top}px`,
             left,
             width,
-            height: `${Math.max(height, 28)}px`,
+            height: `${Math.max(height, 34)}px`,
           }}
         >
-          <div className={cn('absolute left-0 top-0 h-full w-[3px] rounded-l-xl', styles.sidebar)} />
+          <div
+            className={cn('absolute left-0 top-0 h-full w-[4px] rounded-l-2xl', !accentColor && styles.sidebar)}
+            style={sidebarStyle}
+          />
 
-          <div className="relative z-[1] h-full min-h-0 overflow-hidden flex flex-col justify-between gap-[2px] p-2 pl-3">
-            <p className="text-sm font-semibold leading-tight line-clamp-2">
-              {customerName}
-            </p>
+          <div className="relative z-[1] h-full min-h-0 overflow-hidden flex flex-col justify-between gap-1 px-3 py-2.5 pl-4">
+            {isBlockedState ? (
+              <div className="flex items-center gap-1.5 overflow-hidden">
+                <Lock className="h-3.5 w-3.5 shrink-0" />
+                <p className={cn(
+                  'font-semibold leading-tight overflow-hidden',
+                  showCompact ? 'text-[12px] whitespace-nowrap text-ellipsis' : 'text-[13px] line-clamp-2'
+                )}>
+                  {blockTitle}
+                </p>
+              </div>
+            ) : (
+              <p className={cn(
+                'font-semibold leading-tight overflow-hidden',
+                showCompact ? 'text-[12px] whitespace-nowrap text-ellipsis' : 'text-[13px] line-clamp-2'
+              )}>
+                {customerName}
+              </p>
+            )}
 
             {showFull ? (
-              <p className="text-xs text-muted-foreground leading-tight truncate">
-                {serviceName}
+              <p className="text-[11px] text-muted-foreground leading-tight line-clamp-2 overflow-hidden">
+                {isBlockedState ? serviceName || blockTitle : serviceName}
               </p>
             ) : null}
 
-            {showNameAndTime || showFull ? (
-              <p className="text-[11px] opacity-70 leading-tight truncate">
+            <div className="flex items-center gap-1 overflow-hidden opacity-80">
+              <Clock className="h-3 w-3 shrink-0" />
+              <p className={cn(
+                'leading-tight overflow-hidden whitespace-nowrap text-ellipsis',
+                showCompact ? 'text-[10px]' : 'text-[11px]'
+              )}>
                 {apt.start_time} - {apt.end_time}
               </p>
-            ) : null}
+            </div>
 
             {showFull ? (
               <div className="flex items-center justify-between gap-1 overflow-hidden">
@@ -201,26 +228,47 @@ export function AppointmentCard({
           </div>
         </div>
       </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-xs">
-        <div className="grid gap-1.5 text-sm">
+      <TooltipContent side="right" className="max-w-xs rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xl backdrop-blur-sm dark:border-slate-800 dark:bg-slate-950/95">
+        <div className="grid gap-2 text-sm text-slate-900 dark:text-slate-100">
+          <div className="flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2 dark:border-slate-800/80">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Cliente</p>
+              <p className="truncate font-semibold">{customerName}</p>
+            </div>
+            <span className={cn('shrink-0 text-[10px] px-2 py-1 rounded-full font-medium', styles.badge)}>
+              {styles.badgeText}
+            </span>
+          </div>
+
           <div>
-            <span className="font-medium">Cliente:</span> {customerName}
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Servicio</p>
+            <p className="line-clamp-2">{serviceName}</p>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Hora</p>
+              <p>{apt.start_time} - {apt.end_time}</p>
+            </div>
+          </div>
+
           <div>
-            <span className="font-medium">Servicio:</span> {serviceName}
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Estado</p>
+            <p>{styles.badgeText}</p>
           </div>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            <span>{apt.start_time} - {apt.end_time}</span>
-          </div>
+
           {staffName ? (
             <div>
-              <span className="font-medium">Profesional:</span> {staffName}
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Profesional</p>
+              <p>{staffName}</p>
             </div>
           ) : null}
+
           {apt.notes ? (
             <div>
-              <span className="font-medium">Notas:</span> {apt.notes}
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Notas</p>
+              <p className="line-clamp-3">{apt.notes}</p>
             </div>
           ) : null}
         </div>

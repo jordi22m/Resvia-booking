@@ -310,6 +310,11 @@ export default function CalendarPage() {
     return (staff || []).find(s => s.id === newApt.staff_id);
   }, [newApt.staff_id, staff]);
 
+  const selectedCalendarStaff = useMemo(() => {
+    if (!selectedStaffFilter) return null;
+    return (staff || []).find((member) => member.id === selectedStaffFilter) || null;
+  }, [selectedStaffFilter, staff]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -422,6 +427,56 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="px-4 lg:px-6 py-4 border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm">
+        {selectedCalendarStaff ? (
+          <div
+            className="flex items-center gap-4 rounded-2xl border bg-white/85 dark:bg-slate-900/80 px-4 py-4 shadow-sm"
+            style={{
+              borderColor: `${selectedCalendarStaff.color || '#60a5fa'}55`,
+              boxShadow: `inset 0 1px 0 ${selectedCalendarStaff.color || '#60a5fa'}12`,
+            }}
+          >
+            {selectedCalendarStaff.avatar_url ? (
+              <img
+                src={selectedCalendarStaff.avatar_url}
+                alt={selectedCalendarStaff.name}
+                className="h-14 w-14 rounded-full object-cover ring-2"
+                style={{
+                  ringColor: selectedCalendarStaff.color || '#60a5fa',
+                } as React.CSSProperties}
+              />
+            ) : (
+              <div
+                className="flex h-14 w-14 items-center justify-center rounded-full text-sm font-semibold text-white"
+                style={{ backgroundColor: selectedCalendarStaff.color || '#60a5fa' }}
+              >
+                {selectedCalendarStaff.name
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part[0]?.toUpperCase())
+                  .join('')}
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-foreground">{selectedCalendarStaff.name}</p>
+              <p className="text-sm text-muted-foreground">{selectedCalendarStaff.role || 'Trabajador'}</p>
+            </div>
+
+            <div
+              className="hidden h-10 w-1 rounded-full md:block"
+              style={{ backgroundColor: selectedCalendarStaff.color || '#60a5fa' }}
+            />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200/80 bg-white/85 dark:border-slate-800 dark:bg-slate-900/80 px-4 py-4 shadow-sm">
+            <p className="text-base font-semibold text-foreground">Todos los trabajadores</p>
+            <p className="text-sm text-muted-foreground">Vista global del calendario del negocio</p>
+          </div>
+        )}
       </div>
 
       {/* Calendar Grid */}
