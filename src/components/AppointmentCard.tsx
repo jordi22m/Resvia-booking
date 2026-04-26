@@ -141,8 +141,8 @@ export function AppointmentCard({
   }, []);
 
   const density = useMemo(() => {
-    if (availableHeight < 40) return 'compact';
-    if (availableHeight < 70) return 'medium';
+    if (availableHeight < 42) return 'compact';
+    if (availableHeight < 76) return 'medium';
     return 'full';
   }, [availableHeight]);
 
@@ -182,43 +182,42 @@ export function AppointmentCard({
             style={sidebarStyle}
           />
 
-          <div className="relative z-[1] h-full min-h-0 overflow-hidden flex flex-col justify-between gap-1 px-3 py-2.5 pl-4">
+          <div className="relative z-[1] h-full min-h-0 overflow-hidden flex flex-col justify-between gap-0.5 px-2 py-1.5 pl-3">
             {isBlockedState ? (
-              <div className="flex items-center gap-1.5 overflow-hidden">
+              <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
                 <Lock className="h-3.5 w-3.5 shrink-0" />
                 <p className={cn(
-                  'font-semibold leading-tight overflow-hidden',
-                  showCompact ? 'text-[12px] whitespace-nowrap text-ellipsis' : 'text-[13px] line-clamp-2'
+                  'min-w-0 font-semibold text-[12px] leading-tight whitespace-nowrap overflow-hidden text-ellipsis',
+                  showCompact ? 'pr-0' : 'pr-0.5'
                 )}>
                   {blockTitle}
                 </p>
               </div>
             ) : (
               <p className={cn(
-                'font-semibold leading-tight overflow-hidden',
-                showCompact ? 'text-[12px] whitespace-nowrap text-ellipsis' : 'text-[13px] line-clamp-2'
+                'min-w-0 font-semibold text-[12px] leading-tight whitespace-nowrap overflow-hidden text-ellipsis',
+                showCompact ? 'pr-0' : 'pr-0.5'
               )}>
                 {customerName}
               </p>
             )}
 
             {showFull ? (
-              <p className="text-[11px] text-muted-foreground leading-tight line-clamp-2 overflow-hidden">
+              <p className="min-w-0 text-[11px] leading-tight whitespace-nowrap overflow-hidden text-ellipsis opacity-80">
                 {isBlockedState ? serviceName || blockTitle : serviceName}
               </p>
             ) : null}
 
-            <div className="flex items-center gap-1 overflow-hidden opacity-80">
+            <div className="flex min-w-0 items-center gap-1 overflow-hidden opacity-60">
               <Clock className="h-3 w-3 shrink-0" />
               <p className={cn(
-                'leading-tight overflow-hidden whitespace-nowrap text-ellipsis',
-                showCompact ? 'text-[10px]' : 'text-[11px]'
+                'min-w-0 text-[10px] leading-tight overflow-hidden whitespace-nowrap text-ellipsis'
               )}>
                 {apt.start_time} - {apt.end_time}
               </p>
             </div>
 
-            {showFull ? (
+            {showFull && !isBlockedState ? (
               <div className="flex items-center justify-between gap-1 overflow-hidden">
                 <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium truncate', styles.badge)}>
                   {styles.badgeText}
