@@ -24,7 +24,7 @@ import { trackRecommendedSlotBooking } from '@/lib/recommended-slot-analytics';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
-type Step = 'service' | 'calendar' | 'time' | 'details' | 'confirmed';
+type Step = 'booking' | 'confirmed';
 type BookingRpcResult = {
   id?: string;
   public_id?: string | null;
@@ -355,7 +355,7 @@ export default function BookingPage() {
   const isRescheduleFlow = Boolean(rescheduleToken);
   
   // State hooks first
-  const [step, setStep] = useState<Step>('service');
+  const [step, setStep] = useState<Step>('booking');
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -367,6 +367,7 @@ export default function BookingPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [monthDirection, setMonthDirection] = useState<'next' | 'prev'>('next');
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const calendarSectionRef = useRef<HTMLDivElement | null>(null);
   const timeSectionRef = useRef<HTMLDivElement | null>(null);
   
   // Query hooks
@@ -597,6 +598,19 @@ export default function BookingPage() {
     return () => window.cancelAnimationFrame(animationFrame);
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (!selectedService || !calendarSectionRef.current) return;
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      calendarSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [selectedService]);
+
   if (!slug) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -787,267 +801,289 @@ export default function BookingPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {[
-            { key: 'service', label: 'Servicio' },
-            { key: 'calendar', label: 'Fecha' },
-            { key: 'time', label: 'Hora' },
-            { key: 'details', label: 'Datos' },
-          ].map((s, i) => (
-            <div key={s.key} className="flex items-center gap-2">
-              <div className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors",
-                step === s.key ? 'bg-primary text-primary-foreground' :
-                ['service', 'calendar', 'time', 'details'].indexOf(step) > i ? 'bg-primary text-primary-foreground' :
-                'bg-secondary text-muted-foreground'
-              )}>
-                {['service', 'calendar', 'time', 'details'].indexOf(step) > i ? <Check className="h-4 w-4" /> : i + 1}
-              </div>
-              <span className={cn(
-                "text-xs hidden sm:block",
-                step === s.key ? 'text-foreground font-medium' : 'text-muted-foreground'
-              )}>
-                {s.label}
-              </span>
-              {i < 3 ? <div className="w-8 h-px bg-border" /> : null}
-            </div>
-          ))}
-        </div>
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+        <section className="space-y-6">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold text-foreground mb-2">Elige un servicio</h2>
+            <p className="text-muted-foreground">Selecciona el servicio y termina la reserva en esta misma pantalla</p>
+          </div>
 
-        {/* Service Selection */}
-        {step === 'service' ? (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-foreground mb-2">Elige un servicio</h2>
-              <p className="text-muted-foreground">Selecciona el servicio que deseas reservar</p>
-            </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {services?.map(svc => (
+              <Card
+                key={svc.id}
+                className={cn(
+                  "cursor-pointer transition-all hover:shadow-md",
+                  selectedService === svc.id ? 'ring-2 ring-primary shadow-md' : ''
+                )}
+                onClick={() => {
+                  setSelectedService(svc.id);
+                  setSelectedStaff(null);
+                  setSelectedDate(null);
+                  setSelectedTime(null);
+                  setIsAutoSelectedTime(false);
+                  setCurrentMonth(new Date());
+                }}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${svc.color || '#94a3b8'}20` }}
+                    >
+                      <div
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: svc.color || '#94a3b8' }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-foreground truncate">{svc.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-2">{svc.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">
+                          {Number(svc.price) > 0 ? `€${svc.price}` : 'Gratis'}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{svc.duration} min</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              {services?.map(svc => (
-                <Card
-                  key={svc.id}
-                  className={cn(
-                    "cursor-pointer transition-all hover:shadow-md",
-                    selectedService === svc.id ? 'ring-2 ring-primary shadow-md' : ''
-                  )}
-                  onClick={() => {
-                    setSelectedService(svc.id);
-                    setSelectedStaff(null);
+          {!hasBookableServices ? (
+            <Card className="max-w-md mx-auto border-dashed">
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">
+                No hay servicios disponibles para reservar ahora mismo.
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {selectedService ? (
+            <Card className="border-border/70 bg-card/90 shadow-sm">
+              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: `${service?.color || '#94a3b8'}20` }}
+                  >
+                    <div
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: service?.color || '#94a3b8' }}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Servicio seleccionado</p>
+                    <h3 className="mt-1 text-lg font-semibold text-foreground">{service?.name}</h3>
+                    <p className="text-sm text-muted-foreground">{service?.duration} min · {Number(service?.price) > 0 ? `€${service?.price}` : 'Gratis'}</p>
+                  </div>
+                </div>
+                <Button variant="outline" onClick={() => {
+                  setSelectedService(null);
+                  setSelectedStaff(null);
+                  setSelectedDate(null);
+                  setSelectedTime(null);
+                  setIsAutoSelectedTime(false);
+                }}>
+                  Cambiar servicio
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+        </section>
+
+        {hasBookableServices && !hasAvailabilityConfigured ? (
+          <Card className="max-w-md mx-auto border-dashed">
+            <CardContent className="p-6 text-center text-sm text-muted-foreground">
+              Todavia no hay disponibilidad configurada para mostrar fechas y horas.
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {selectedService ? (
+          <section ref={calendarSectionRef} className="space-y-8 animate-in fade-in-0 duration-300">
+            {staff && staff.length > 0 ? (
+              <div className="space-y-3">
+                <div className="text-center">
+                  <h2 className="text-2xl font-semibold text-foreground mb-2">Elige profesional</h2>
+                  <p className="text-muted-foreground">Cambiar el profesional recalcula la disponibilidad al instante</p>
+                </div>
+                <StaffSelector
+                  staff={staff}
+                  selectedStaffId={selectedStaff}
+                  onSelectStaff={(staffId) => {
+                    setSelectedStaff(staffId);
                     setSelectedDate(null);
                     setSelectedTime(null);
                     setIsAutoSelectedTime(false);
-                    setCurrentMonth(new Date());
                   }}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className="h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: `${svc.color || '#94a3b8'}20` }}
-                      >
-                        <div
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: svc.color || '#94a3b8' }}
+                  isLoading={false}
+                  allowAnyStaff={true}
+                />
+              </div>
+            ) : null}
+
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una fecha</h2>
+                <p className="text-muted-foreground">Elige el día y verás los horarios disponibles debajo</p>
+              </div>
+
+              <Card className="mx-auto w-full max-w-2xl overflow-hidden border-border/70 shadow-sm">
+                <CardHeader className="border-b border-border/60 bg-gradient-to-b from-card to-secondary/20 pb-4">
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => changeMonth('prev')}
+                      className="rounded-full"
+                      aria-label="Mes anterior"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <CardTitle className="text-lg capitalize">
+                      {format(currentMonth, "MMMM yyyy", { locale: es })}
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => changeMonth('next')}
+                      className="rounded-full"
+                      aria-label="Mes siguiente"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-5">
+                  <div className="mb-3 grid grid-cols-7 gap-2">
+                    {WEEKDAY_SHORT_ES.map(day => (
+                      <div key={day} className="flex h-8 items-center justify-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground" translate="no">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    key={format(currentMonth, 'yyyy-MM')}
+                    className={cn(
+                      'grid grid-cols-7 gap-2',
+                      'animate-in fade-in-0 duration-300',
+                      monthDirection === 'next' ? 'slide-in-from-right-3' : 'slide-in-from-left-3'
+                    )}
+                  >
+                    {loadingMonthAppointments ? (
+                      <div className="col-span-7 grid grid-cols-7 gap-2 py-1">
+                        {Array.from({ length: 14 }, (_, index) => (
+                          <Skeleton key={index} className="h-14 rounded-2xl" />
+                        ))}
+                      </div>
+                    ) : null}
+                    {calendarDays.map(date => {
+                      const isCurrentMonth = isSameMonth(date, currentMonth);
+                      const isSelected = selectedDate && isSameDay(date, selectedDate);
+                      const isToday = isSameDay(date, new Date());
+                      const hasAvailability = isDayAvailableForBooking(date);
+                      const availableSlotsCount = getDaySlotCount(date);
+
+                      return (
+                        <CalendarDayButton
+                          key={date.toISOString()}
+                          date={date}
+                          isCurrentMonth={isCurrentMonth}
+                          isSelected={isSelected}
+                          isToday={isToday}
+                          hasAvailability={hasAvailability}
+                          availableSlotsCount={availableSlotsCount}
+                          hoverLabel={getDayHoverLabel(date)}
+                          onSelect={(nextDate) => {
+                            setSelectedDate(nextDate);
+                            setSelectedTime(null);
+                            setIsAutoSelectedTime(false);
+                          }}
                         />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground truncate">{svc.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-2">{svc.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-foreground">
-                            {Number(svc.price) > 0 ? `€${svc.price}` : 'Gratis'}
-                          </span>
-                          <span className="text-xs text-muted-foreground">{svc.duration} min</span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {!hasBookableServices ? (
-              <Card className="max-w-md mx-auto border-dashed">
-                <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                  No hay servicios disponibles para reservar ahora mismo.
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {hasBookableServices && !hasAvailabilityConfigured ? (
-              <Card className="max-w-md mx-auto border-dashed">
-                <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                  Todavia no hay disponibilidad configurada para mostrar fechas y horas.
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {selectedService && staff && staff.length > 0 ? (
-              <StaffSelector
-                staff={staff}
-                selectedStaffId={selectedStaff}
-                onSelectStaff={setSelectedStaff}
-                isLoading={false}
-                allowAnyStaff={true}
-              />
-            ) : null}
-
-            <div className="flex justify-center">
-              <Button
-                size="lg"
-                disabled={!selectedService || !hasBookableServices || !hasAvailabilityConfigured || (staff && staff.length > 0 && !selectedStaff)}
-                onClick={() => setStep('calendar')}
-                className="px-8"
-              >
-                Continuar
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Calendar Selection */}
-        {step === 'calendar' ? (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una fecha</h2>
-              <p className="text-muted-foreground">Elige el día que prefieras para tu cita</p>
-            </div>
-
-            {/* Calendar */}
-            <Card className="mx-auto w-full max-w-2xl overflow-hidden border-border/70 shadow-sm">
-              <CardHeader className="border-b border-border/60 bg-gradient-to-b from-card to-secondary/20 pb-4">
-                <div className="flex items-center justify-between">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => changeMonth('prev')}
-                    className="rounded-full"
-                    aria-label="Mes anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <CardTitle className="text-lg capitalize">
-                    {format(currentMonth, "MMMM yyyy", { locale: es })}
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => changeMonth('next')}
-                    className="rounded-full"
-                    aria-label="Mes siguiente"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-5">
-                {/* Days of week */}
-                <div className="mb-3 grid grid-cols-7 gap-2">
-                  {WEEKDAY_SHORT_ES.map(day => (
-                    <div key={day} className="flex h-8 items-center justify-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground" translate="no">
-                      {day}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Calendar days */}
-                <div
-                  key={format(currentMonth, 'yyyy-MM')}
-                  className={cn(
-                    'grid grid-cols-7 gap-2',
-                    'animate-in fade-in-0 duration-300',
-                    monthDirection === 'next' ? 'slide-in-from-right-3' : 'slide-in-from-left-3'
-                  )}
-                >
-                  {loadingMonthAppointments ? (
-                    <div className="col-span-7 grid grid-cols-7 gap-2 py-1">
-                      {Array.from({ length: 14 }, (_, index) => (
-                        <Skeleton key={index} className="h-14 rounded-2xl" />
-                      ))}
-                    </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                      Días con disponibilidad
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
+                      Días completos
+                    </span>
+                    <span>El número indica los huecos disponibles</span>
+                  </div>
+                  {!loadingMonthAppointments && hasAvailabilityConfigured && service && monthDayAvailabilityMap.size > 0 && !calendarDays.some((date) => isDayAvailableForBooking(date)) ? (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      No hay fechas disponibles para este servicio en el mes seleccionado.
+                    </p>
                   ) : null}
-                  {calendarDays.map(date => {
-                    const isCurrentMonth = isSameMonth(date, currentMonth);
-                    const isSelected = selectedDate && isSameDay(date, selectedDate);
-                    const isToday = isSameDay(date, new Date());
-                    const hasAvailability = isDayAvailableForBooking(date);
-                    const availableSlotsCount = getDaySlotCount(date);
+                </CardContent>
+              </Card>
+            </div>
 
-                    return (
-                      <CalendarDayButton
-                        key={date.toISOString()}
-                        date={date}
-                        isCurrentMonth={isCurrentMonth}
-                        isSelected={isSelected}
-                        isToday={isToday}
-                        hasAvailability={hasAvailability}
-                        availableSlotsCount={availableSlotsCount}
-                        hoverLabel={getDayHoverLabel(date)}
-                        onSelect={(nextDate) => {
-                          setSelectedDate(nextDate);
-                          setSelectedTime(null);
-                          setIsAutoSelectedTime(false);
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-                    Días con disponibilidad
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
-                    Días completos
-                  </span>
-                  <span>El número indica los huecos disponibles</span>
-                </div>
-                {!loadingMonthAppointments && hasAvailabilityConfigured && service && monthDayAvailabilityMap.size > 0 && !calendarDays.some((date) => isDayAvailableForBooking(date)) ? (
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    No hay fechas disponibles para este servicio en el mes seleccionado.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
+            <div ref={timeSectionRef} className="space-y-6 animate-in fade-in-0 slide-in-from-bottom-3 duration-300">
+              <div className="text-center">
+                <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una hora</h2>
+                <p className="text-muted-foreground">
+                  {selectedDate ? formatBookingDateEs(selectedDate) : 'Primero elige un día en el calendario'}
+                </p>
+              </div>
 
-            {selectedDate ? (
-              <Card className="mx-auto w-full max-w-2xl border-border/70 bg-card/90 shadow-sm animate-in fade-in-0 slide-in-from-bottom-3 duration-300">
+              <Card className="mx-auto w-full max-w-3xl border-border/70 shadow-sm overflow-hidden">
                 <CardContent className="p-5 sm:p-6">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="mb-5 flex flex-col gap-3 rounded-2xl bg-secondary/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Disponibilidad rápida</p>
-                      <h3 className="mt-1 text-lg font-semibold text-foreground">{selectedDateLabel}</h3>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Horarios disponibles</p>
+                      <p className="mt-1 text-sm text-foreground">Selecciona la hora que mejor te encaje.</p>
                     </div>
-                    {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                    {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
                       <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
                         Quedan {availableTimeSlots.length} horarios
                       </div>
                     ) : null}
                   </div>
 
-                  <div className="mt-4">
-                    {loadingDayAppointments ? <TimeSlotsSkeleton compact /> : null}
+                  {!selectedDate ? (
+                    <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/20 px-4 py-10 text-center">
+                      <Calendar className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                      <p className="font-medium text-foreground">Selecciona una fecha para ver horarios</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Los huecos aparecerán aquí sin cambiar de pantalla.</p>
+                    </div>
+                  ) : null}
 
-                    {!loadingDayAppointments && availableTimeSlots.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/30 px-4 py-8 text-center animate-in fade-in-0 duration-200">
-                        <Clock className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-                        <p className="font-medium text-foreground">No hay disponibilidad este día</p>
-                        <p className="mt-1 text-sm text-muted-foreground">Prueba con otra fecha del calendario.</p>
+                  {selectedDate && hasUrgency ? (
+                    <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 animate-in fade-in-0 slide-in-from-top-2 duration-300">
+                      ¡Quedan pocas horas disponibles!
+                    </div>
+                  ) : null}
+
+                  {selectedDate && loadingDayAppointments ? (
+                    <div className="space-y-4 animate-in fade-in-0 duration-200">
+                      <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cargando horarios...
                       </div>
-                    ) : null}
+                      <TimeSlotsSkeleton />
+                    </div>
+                  ) : null}
 
-                    {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                  {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                    <div className="max-h-[420px] overflow-y-auto pr-1 scroll-smooth">
                       <p className="mb-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
                         Estas horas ayudan a optimizar la agenda del negocio
                       </p>
-                    ) : null}
-
-                    {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
-                        {previewTimeSlots.map((slot) => (
+                      {selectedTime && isAutoSelectedTime ? (
+                        <div className="mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
+                          Seleccionado automáticamente
+                        </div>
+                      ) : null}
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
+                        {availableTimeSlots.map(slot => (
                           <TimeSlotButton
                             key={slot.time}
                             slot={slot}
@@ -1055,276 +1091,169 @@ export default function BookingPage() {
                             onSelect={(time) => {
                               setSelectedTime(time);
                               setIsAutoSelectedTime(false);
+                              toast({
+                                title: 'Horario seleccionado',
+                                description: `${time} (${service?.duration || 30} min)`
+                              });
                             }}
                           />
                         ))}
                       </div>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            <div className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => setStep('service')}>
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Atrás
-              </Button>
-              <Button
-                size="lg"
-                disabled={!selectedDate || !isDayAvailableForBooking(selectedDate)}
-                onClick={() => setStep('time')}
-                className="px-8"
-              >
-                Continuar
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Time Selection */}
-        {step === 'time' ? (
-          <div ref={timeSectionRef} className="space-y-6 animate-in fade-in-0 slide-in-from-bottom-3 duration-300">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una hora</h2>
-              <p className="text-muted-foreground">
-                {selectedDate ? formatBookingDateEs(selectedDate) : ''}
-              </p>
-            </div>
-
-            <Card className="mx-auto w-full max-w-3xl border-border/70 shadow-sm overflow-hidden">
-              <CardContent className="p-5 sm:p-6">
-                <div className="mb-5 flex flex-col gap-3 rounded-2xl bg-secondary/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Horarios disponibles</p>
-                    <p className="mt-1 text-sm text-foreground">Selecciona la hora que mejor te encaje.</p>
-                  </div>
-                  {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
-                    <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
-                      Quedan {availableTimeSlots.length} horarios
                     </div>
                   ) : null}
-                </div>
 
-                {hasUrgency ? (
-                  <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 animate-in fade-in-0 slide-in-from-top-2 duration-300">
-                    ¡Quedan pocas horas disponibles!
-                  </div>
-                ) : null}
-
-                {loadingDayAppointments ? (
-                  <div className="space-y-4 animate-in fade-in-0 duration-200">
-                    <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Cargando horarios...
+                  {selectedDate && !loadingDayAppointments && availableTimeSlots.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/20 px-4 py-10 text-center animate-in fade-in-0 duration-200">
+                      <Clock className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                      <p className="font-medium text-foreground">No hay disponibilidad este día</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Cambia de fecha para ver otros horarios libres.</p>
                     </div>
-                    <TimeSlotsSkeleton />
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
-                  <div className="max-h-[420px] overflow-y-auto pr-1 scroll-smooth">
-                    <p className="mb-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                      Estas horas ayudan a optimizar la agenda del negocio
+                  {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
+                    <p className="mt-4 text-center text-xs text-muted-foreground">
+                      {availableTimeSlots.length} horarios disponibles
                     </p>
-                    {selectedTime && isAutoSelectedTime ? (
-                      <div className="mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
-                        Seleccionado automáticamente
-                      </div>
-                    ) : null}
-                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
-                      {availableTimeSlots.map(slot => (
-                        <TimeSlotButton
-                          key={slot.time}
-                          slot={slot}
-                          isSelected={selectedTime === slot.time}
-                          onSelect={(time) => {
-                            setSelectedTime(time);
-                            setIsAutoSelectedTime(false);
-                            toast({
-                              title: 'Horario seleccionado',
-                              description: `${time} (${service?.duration || 30} min)`
-                            });
-                          }}
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
+
+            {selectedTime ? (
+              <section className="space-y-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
+                <div className="text-center">
+                  <h2 className="text-2xl font-semibold text-foreground mb-2">Tus datos</h2>
+                  <p className="text-muted-foreground">Completa la información para confirmar tu reserva</p>
+                </div>
+
+                <Card className="max-w-md mx-auto">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-10 w-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: `${service?.color || '#94a3b8'}20` }}
+                      >
+                        <div
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: service?.color || '#94a3b8' }}
                         />
-                      ))}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{service?.name}</p>
+                        <p className="text-sm text-muted-foreground">{service?.duration} min</p>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
 
-                {!loadingDayAppointments && availableTimeSlots.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border/80 bg-secondary/20 px-4 py-10 text-center animate-in fade-in-0 duration-200">
-                    <Clock className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <p className="font-medium text-foreground">No hay disponibilidad este día</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Cambia de fecha para ver otros horarios libres.</p>
-                  </div>
-                ) : null}
+                    <div className="border-t pt-3 space-y-1 text-sm">
+                      <p className="flex justify-between">
+                        <span className="text-muted-foreground">Profesional:</span>
+                        <span>{staffMember?.name || 'Cualquier disponible'}</span>
+                      </p>
+                      <p className="flex justify-between">
+                        <span className="text-muted-foreground">Fecha:</span>
+                        <span>{selectedDate && format(selectedDate, "d/MM/yyyy", { locale: es })}</span>
+                      </p>
+                      <p className="flex justify-between">
+                        <span className="text-muted-foreground">Hora:</span>
+                        <span>{selectedTime}</span>
+                      </p>
+                      <p className="flex justify-between font-medium">
+                        <span>Total:</span>
+                        <span>{Number(service?.price) > 0 ? `€${service.price}` : 'Gratis'}</span>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {!loadingDayAppointments && availableTimeSlots.length > 0 ? (
-                  <p className="mt-4 text-center text-xs text-muted-foreground">
-                    {availableTimeSlots.length} horarios disponibles
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
+                <Card className="max-w-md mx-auto">
+                  <CardContent className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Nombre completo *</label>
+                      <Input
+                        placeholder="Tu nombre"
+                        value={formData.name}
+                        onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+                      />
+                    </div>
 
-            <div className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => setStep('calendar')}>
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Atrás
-              </Button>
-              <Button
-                size="lg"
-                disabled={!selectedTime}
-                onClick={() => setStep('details')}
-                className="px-8"
-              >
-                {selectedTime ? `Confirmar cita a las ${selectedTime}` : 'Selecciona una hora'}
-              </Button>
-            </div>
-          </div>
-        ) : null}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Teléfono {requirePhone ? '*' : ''}</label>
+                      <Input
+                        placeholder="Número de teléfono"
+                        value={formData.phone}
+                        onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
 
-        {/* Details Form */}
-        {step === 'details' ? (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-foreground mb-2">Tus datos</h2>
-              <p className="text-muted-foreground">Completa la información para confirmar tu reserva</p>
-            </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Email {requireEmail ? '*' : ''}</label>
+                      <Input
+                        type="email"
+                        placeholder="tu@email.com"
+                        value={formData.email}
+                        onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
 
-            {/* Booking Summary */}
-            <Card className="max-w-md mx-auto">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="h-10 w-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${service?.color || '#94a3b8'}20` }}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Notas (opcional)</label>
+                      <Textarea
+                        placeholder="Información adicional..."
+                        value={formData.notes}
+                        onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
+                        rows={3}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-center">
+                  <Button
+                    size="lg"
+                    disabled={
+                      !formData.name ||
+                      (requirePhone && !formData.phone) ||
+                      (requireEmail && !formData.email) ||
+                      submitting
+                    }
+                    onClick={async () => {
+                      const selectedRecommended = Boolean(
+                        selectedSlotMeta?.isPrimaryRecommended || selectedSlotMeta?.isRecommended
+                      );
+
+                      const bookingCreated = await handleBookingSubmit({
+                        slug: slug || '',
+                        profile,
+                        service,
+                        selectedDate,
+                        selectedTime,
+                        selectedStaff,
+                        formData,
+                        availability: availability || [],
+                        appointments: dayAppointments || [],
+                        calendarBlocks: monthCalendarBlocks || [],
+                        rescheduleToken: rescheduleToken || null,
+                        setSubmitting,
+                        setConfirmationData,
+                        setStep,
+                        toast
+                      });
+
+                      if (bookingCreated) {
+                        trackRecommendedSlotBooking(selectedRecommended);
+                      }
+                    }}
+                    className="px-8"
                   >
-                    <div
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: service?.color || '#94a3b8' }}
-                    />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{service?.name}</p>
-                    <p className="text-sm text-muted-foreground">{service?.duration} min</p>
-                  </div>
+                    <span className="inline-flex h-4 w-4 items-center justify-center mr-2">
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    </span>
+                    <span>{isRescheduleFlow ? 'Confirmar reprogramacion' : 'Confirmar reserva'}</span>
+                  </Button>
                 </div>
-
-                <div className="border-t pt-3 space-y-1 text-sm">
-                  <p className="flex justify-between">
-                    <span className="text-muted-foreground">Profesional:</span>
-                    <span>{staffMember?.name || 'Cualquier disponible'}</span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span className="text-muted-foreground">Fecha:</span>
-                    <span>{selectedDate && format(selectedDate, "d/MM/yyyy", { locale: es })}</span>
-                  </p>
-                  <p className="flex justify-between">
-                    <span className="text-muted-foreground">Hora:</span>
-                    <span>{selectedTime}</span>
-                  </p>
-                  <p className="flex justify-between font-medium">
-                    <span>Total:</span>
-                    <span>{Number(service?.price) > 0 ? `€${service.price}` : 'Gratis'}</span>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Form */}
-            <Card className="max-w-md mx-auto">
-              <CardContent className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Nombre completo *</label>
-                  <Input
-                    placeholder="Tu nombre"
-                    value={formData.name}
-                    onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Teléfono {requirePhone ? '*' : ''}</label>
-                  <Input
-                    placeholder="Número de teléfono"
-                    value={formData.phone}
-                    onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email {requireEmail ? '*' : ''}</label>
-                  <Input
-                    type="email"
-                    placeholder="tu@email.com"
-                    value={formData.email}
-                    onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Notas (opcional)</label>
-                  <Textarea
-                    placeholder="Información adicional..."
-                    value={formData.notes}
-                    onChange={e => setFormData(p => ({ ...p, notes: e.target.value }))}
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => setStep('time')}>
-                <ChevronLeft className="h-4 w-4 mr-2" />
-                Atrás
-              </Button>
-              <Button
-                size="lg"
-                disabled={
-                  !formData.name ||
-                  (requirePhone && !formData.phone) ||
-                  (requireEmail && !formData.email) ||
-                  submitting
-                }
-                onClick={async () => {
-                  const selectedRecommended = Boolean(
-                    selectedSlotMeta?.isPrimaryRecommended || selectedSlotMeta?.isRecommended
-                  );
-
-                  const bookingCreated = await handleBookingSubmit({
-                    slug: slug || '',
-                    profile,
-                    service,
-                    selectedDate,
-                    selectedTime,
-                    selectedStaff,
-                    formData,
-                    availability: availability || [],
-                    appointments: dayAppointments || [],
-                    calendarBlocks: monthCalendarBlocks || [],
-                    rescheduleToken: rescheduleToken || null,
-                    setSubmitting,
-                    setConfirmationData,
-                    setStep,
-                    toast
-                  });
-
-                  if (bookingCreated) {
-                    trackRecommendedSlotBooking(selectedRecommended);
-                  }
-                }}
-                className="px-8"
-              >
-                <span className="inline-flex h-4 w-4 items-center justify-center mr-2">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                </span>
-                <span>{isRescheduleFlow ? 'Confirmar reprogramacion' : 'Confirmar reserva'}</span>
-              </Button>
-            </div>
-          </div>
+              </section>
+            ) : null}
+          </section>
         ) : null}
       </div>
     </div>
