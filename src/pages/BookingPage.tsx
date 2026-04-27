@@ -584,13 +584,14 @@ export default function BookingPage() {
       return;
     }
 
-    const topRecommendedSlot = availableTimeSlots.find(
-      (slot) => slot.isPrimaryRecommended || slot.isRecommended
-    );
+    const autoSelectedSlot =
+      availableTimeSlots.find((slot) => slot.isPrimaryRecommended) ??
+      availableTimeSlots.find((slot) => slot.isRecommended) ??
+      availableTimeSlots[0];
 
-    if (!topRecommendedSlot) return;
+    if (!autoSelectedSlot) return;
 
-    setSelectedTime(topRecommendedSlot.time);
+    setSelectedTime(autoSelectedSlot.time);
     setIsAutoSelectedTime(true);
   }, [availableTimeSlots, loadingDayAppointments, selectedTime]);
 
