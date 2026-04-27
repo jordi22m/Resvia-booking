@@ -164,10 +164,12 @@ function CalendarDayButton({
 function TimeSlotButton({
   slot,
   isSelected,
+  isAutoSelected,
   onSelect,
 }: {
   slot: { time: string; isRecommended?: boolean; isPrimaryRecommended?: boolean };
   isSelected: boolean;
+  isAutoSelected?: boolean;
   onSelect: (time: string) => void;
 }) {
   const buttonContent = (
@@ -177,36 +179,42 @@ function TimeSlotButton({
       className={cn(
         'group rounded-2xl border px-4 py-4 text-left transition-all duration-200 ease-out',
         'min-h-[76px] focus:outline-none focus:ring-2 focus:ring-primary/20',
-        isSelected
-          ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-          : slot.isPrimaryRecommended
-            ? 'border-amber-400 bg-amber-50 shadow-[0_0_0_2px_rgba(245,158,11,0.24)] hover:-translate-y-0.5 hover:border-amber-500 hover:bg-amber-100/80 hover:shadow-lg dark:bg-amber-950/30 dark:border-amber-700/80'
-            : slot.isRecommended
+        slot.isPrimaryRecommended
+          ? 'border-amber-400 bg-amber-50 shadow-[0_0_0_2px_rgba(245,158,11,0.24)] hover:-translate-y-0.5 hover:border-amber-500 hover:bg-amber-100/80 hover:shadow-lg dark:bg-amber-950/30 dark:border-amber-700/80'
+          : slot.isRecommended
             ? 'border-emerald-300 bg-emerald-50/85 shadow-[0_0_0_1px_rgba(16,185,129,0.16)] hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md dark:bg-emerald-950/20 dark:border-emerald-700/70'
-            : 'border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md'
+            : 'border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md',
+        isSelected && !slot.isPrimaryRecommended && !slot.isRecommended && 'border-primary/80 bg-primary/5 shadow-[0_0_0_2px_rgba(59,130,246,0.2)]',
+        isSelected && slot.isPrimaryRecommended && 'border-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.28)]',
+        isSelected && slot.isRecommended && !slot.isPrimaryRecommended && 'border-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.24)]'
       )}
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-lg font-semibold tracking-tight">{slot.time}</span>
-          {slot.isPrimaryRecommended && !isSelected ? (
+          {slot.isPrimaryRecommended ? (
             <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:border-amber-700 dark:bg-amber-900/45 dark:text-amber-200">
               🔥 Mejor opción
             </span>
           ) : null}
-          {!slot.isPrimaryRecommended && slot.isRecommended && !isSelected ? (
+          {!slot.isPrimaryRecommended && slot.isRecommended ? (
             <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
               ⭐ Recomendado
             </span>
           ) : null}
         </div>
-        {isSelected ? <Check className="h-4 w-4 shrink-0" /> : <Clock className="h-4 w-4 shrink-0 opacity-50 group-hover:opacity-80" />}
+        {isSelected ? <Check className="h-4 w-4 shrink-0 text-primary" /> : <Clock className="h-4 w-4 shrink-0 opacity-50 group-hover:opacity-80" />}
       </div>
-      <p className={cn('mt-1 text-xs', isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+      <p className="mt-1 text-xs text-muted-foreground">
         {slot.isPrimaryRecommended || slot.isRecommended
           ? 'Recomendado para aprovechar mejor el tiempo del negocio'
           : 'Disponible para reservar'}
       </p>
+      {isAutoSelected ? (
+        <p className="mt-2 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
+          Elegido para ti automáticamente
+        </p>
+      ) : null}
     </button>
   );
 
@@ -921,11 +929,10 @@ export default function BookingPage() {
             {activeStaff.length > 0 ? (
               <div className="space-y-3">
                 <div className="text-center">
-                  <h2 className="text-2xl font-semibold text-foreground mb-2">Elige profesional</h2>
-                  <p className="text-muted-foreground">Cambiar el profesional recalcula la disponibilidad al instante</p>
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Profesional (opcional)</p>
                 </div>
                 <div className="overflow-x-auto pb-2">
-                  <div className="flex min-w-max gap-3">
+                  <div className="flex min-w-max gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
@@ -935,19 +942,18 @@ export default function BookingPage() {
                         setIsAutoSelectedTime(false);
                       }}
                       className={cn(
-                        'group flex w-32 shrink-0 flex-col items-center gap-3 rounded-2xl border-2 px-4 py-4 text-center transition-all duration-200 ease-out',
+                        'group flex w-28 shrink-0 flex-col items-center gap-2 rounded-2xl border-2 px-3 py-3 text-center transition-all duration-200 ease-out',
                         'hover:border-primary/50 hover:bg-primary/5',
                         selectedStaff === null
                           ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20'
                           : 'border-border bg-card'
                       )}
                     >
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-center text-xs font-semibold text-foreground">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-center text-[11px] font-semibold text-foreground">
                         Cualquiera
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold leading-tight">Cualquiera disponible</p>
-                        <p className="text-xs text-muted-foreground">Asignación automática</p>
+                        <p className="text-xs font-semibold leading-tight">Cualquiera disponible</p>
                       </div>
                     </button>
 
@@ -962,7 +968,7 @@ export default function BookingPage() {
                           setIsAutoSelectedTime(false);
                         }}
                         className={cn(
-                          'group relative flex w-32 shrink-0 flex-col items-center gap-3 rounded-2xl border-2 px-4 py-4 text-center transition-all duration-200 ease-out',
+                          'group relative flex w-28 shrink-0 flex-col items-center gap-2 rounded-2xl border-2 px-3 py-3 text-center transition-all duration-200 ease-out',
                           'hover:border-primary/50 hover:bg-primary/5',
                           selectedStaff === member.id
                             ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20'
@@ -973,18 +979,18 @@ export default function BookingPage() {
                           <img
                             src={member.avatar_url}
                             alt={member.name}
-                            className="h-16 w-16 rounded-full object-cover ring-2 ring-background"
+                            className="h-20 w-20 rounded-full object-cover ring-2 ring-background"
                           />
                         ) : (
                           <div
-                            className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white"
+                            className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white"
                             style={{ backgroundColor: member.color || '#3b82f6' }}
                           >
                             {member.name.charAt(0).toUpperCase()}
                           </div>
                         )}
                         <div className="space-y-1">
-                          <p className="text-sm font-semibold leading-tight line-clamp-2">{member.name}</p>
+                          <p className="text-xs font-semibold leading-tight line-clamp-2">{member.name}</p>
                           {member.role ? <p className="text-xs text-muted-foreground line-clamp-2">{member.role}</p> : null}
                         </div>
                         {selectedStaff === member.id ? (
@@ -1001,8 +1007,8 @@ export default function BookingPage() {
 
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una fecha</h2>
-                <p className="text-muted-foreground">Elige el día y verás los horarios disponibles debajo</p>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Calendario</p>
+                <p className="mt-2 text-sm text-muted-foreground">Selecciona el día que mejor te venga</p>
               </div>
 
               <Card className="mx-auto w-full max-w-2xl overflow-hidden border-border/70 shadow-sm">
@@ -1103,7 +1109,7 @@ export default function BookingPage() {
 
             <div ref={timeSectionRef} className="space-y-6 animate-in fade-in-0 slide-in-from-bottom-3 duration-300">
               <div className="text-center">
-                <h2 className="text-2xl font-semibold text-foreground mb-2">Selecciona una hora</h2>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Horarios</p>
                 <p className="text-muted-foreground">
                   {selectedDate ? formatBookingDateEs(selectedDate) : 'Primero elige un día en el calendario'}
                 </p>
@@ -1149,17 +1155,13 @@ export default function BookingPage() {
 
                   {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
                     <div className="max-h-[420px] overflow-y-auto pr-1 scroll-smooth">
-                      {selectedTime && isAutoSelectedTime ? (
-                        <div className="mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
-                          Seleccionado automáticamente
-                        </div>
-                      ) : null}
                       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
                         {visibleTimeSlots.map(slot => (
                           <TimeSlotButton
                             key={slot.time}
                             slot={slot}
                             isSelected={selectedTime === slot.time}
+                            isAutoSelected={Boolean(isAutoSelectedTime && selectedTime === slot.time)}
                             onSelect={(time) => {
                               setSelectedTime(time);
                               setIsAutoSelectedTime(false);
@@ -1194,7 +1196,10 @@ export default function BookingPage() {
             {selectedTime ? (
               <section className="space-y-6 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
                 <div className="text-center">
-                  <h2 className="text-2xl font-semibold text-foreground mb-2">Tus datos</h2>
+                  <p className="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
+                    Ya casi está lista tu cita
+                  </p>
+                  <h2 className="text-xl font-semibold text-foreground mt-3 mb-2">Tus datos</h2>
                   <p className="text-muted-foreground">Completa la información para confirmar tu reserva</p>
                 </div>
 
