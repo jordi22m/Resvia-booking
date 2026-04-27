@@ -544,7 +544,21 @@ export default function BookingPage() {
     return `${formatBookingDateEs(selectedDate)} ${format(selectedDate, 'yyyy')}`;
   }, [selectedDate]);
 
-  const previewTimeSlots = useMemo(() => availableTimeSlots.slice(0, 6), [availableTimeSlots]);
+  const visibleTimeSlots = useMemo(() => {
+    if (availableTimeSlots.length === 0) return [];
+
+    const recommended = availableTimeSlots.filter((slot) => slot.isRecommended);
+    const primary = recommended.filter((slot) => slot.isPrimaryRecommended).slice(0, 2);
+    const secondary = recommended.filter((slot) => !slot.isPrimaryRecommended).slice(0, 1);
+
+    const selectedTimes = new Set([...primary, ...secondary].map((slot) => slot.time));
+    const rest = availableTimeSlots
+      .filter((slot) => !selectedTimes.has(slot.time))
+      .slice(0, 4);
+
+    return [...primary, ...secondary, ...rest].slice(0, 8);
+  }, [availableTimeSlots]);
+
   const hasUrgency = !loadingDayAppointments && availableTimeSlots.length > 0 && availableTimeSlots.length <= 3;
   const selectedSlotMeta = useMemo(
     () => availableTimeSlots.find((slot) => slot.time === selectedTime) ?? null,
@@ -1103,7 +1117,7 @@ export default function BookingPage() {
                     </div>
                     {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
                       <div className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900 ring-1 ring-emerald-200">
-                        Quedan {availableTimeSlots.length} horarios
+                        Mostrando {visibleTimeSlots.length} de {availableTimeSlots.length} horarios
                       </div>
                     ) : null}
                   </div>
@@ -1143,7 +1157,7 @@ export default function BookingPage() {
                         </div>
                       ) : null}
                       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
-                        {availableTimeSlots.map(slot => (
+                        {visibleTimeSlots.map(slot => (
                           <TimeSlotButton
                             key={slot.time}
                             slot={slot}
@@ -1172,7 +1186,7 @@ export default function BookingPage() {
 
                   {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
                     <p className="mt-4 text-center text-xs text-muted-foreground">
-                      {availableTimeSlots.length} horarios disponibles
+                      Mostrando los horarios más relevantes para facilitar la reserva
                     </p>
                   ) : null}
                 </CardContent>
