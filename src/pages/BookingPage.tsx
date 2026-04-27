@@ -180,9 +180,9 @@ function TimeSlotButton({
         isSelected
           ? 'border-primary bg-primary text-primary-foreground shadow-lg shadow-primary/20'
           : slot.isPrimaryRecommended
-            ? 'border-amber-400/90 bg-amber-50/90 shadow-[0_0_0_2px_rgba(245,158,11,0.22)] hover:-translate-y-0.5 hover:border-amber-500 hover:bg-amber-50 hover:shadow-lg dark:bg-amber-950/30 dark:border-amber-700/80'
+            ? 'border-amber-400 bg-amber-50 shadow-[0_0_0_2px_rgba(245,158,11,0.24)] hover:-translate-y-0.5 hover:border-amber-500 hover:bg-amber-100/80 hover:shadow-lg dark:bg-amber-950/30 dark:border-amber-700/80'
             : slot.isRecommended
-            ? 'border-emerald-300/80 bg-emerald-50/80 shadow-[0_0_0_1px_rgba(16,185,129,0.15)] hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md dark:bg-emerald-950/20 dark:border-emerald-700/70'
+            ? 'border-emerald-300 bg-emerald-50/85 shadow-[0_0_0_1px_rgba(16,185,129,0.16)] hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-md dark:bg-emerald-950/20 dark:border-emerald-700/70'
             : 'border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:bg-accent/60 hover:shadow-md'
       )}
     >
@@ -1148,9 +1148,6 @@ export default function BookingPage() {
 
                   {selectedDate && !loadingDayAppointments && availableTimeSlots.length > 0 ? (
                     <div className="max-h-[420px] overflow-y-auto pr-1 scroll-smooth">
-                      <p className="mb-3 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                        Estas horas ayudan a optimizar la agenda del negocio
-                      </p>
                       {selectedTime && isAutoSelectedTime ? (
                         <div className="mb-3 inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-200">
                           Seleccionado automáticamente
