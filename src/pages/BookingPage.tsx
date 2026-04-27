@@ -10,7 +10,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { StaffSelector } from '@/components/StaffSelector';
 import { useProfileBySlug } from '@/hooks/use-profile';
 import type { Profile } from '@/hooks/use-profile';
 import { useServicesByUserId, type Service } from '@/hooks/use-services';
@@ -410,6 +409,7 @@ export default function BookingPage() {
 
   const service = services?.find((s: Service) => s.id === selectedService);
   const staffMember = staff?.find((s: StaffMember) => s.id === selectedStaff);
+  const activeStaff = useMemo(() => (staff ?? []).filter((member) => member.active), [staff]);
   const hasBookableServices = (services?.length ?? 0) > 0;
   const hasAvailabilityConfigured = (availability?.length ?? 0) > 0;
 
@@ -903,24 +903,84 @@ export default function BookingPage() {
 
         {selectedService ? (
           <section ref={calendarSectionRef} className="space-y-8 animate-in fade-in-0 duration-300">
-            {staff && staff.length > 0 ? (
+            {activeStaff.length > 0 ? (
               <div className="space-y-3">
                 <div className="text-center">
                   <h2 className="text-2xl font-semibold text-foreground mb-2">Elige profesional</h2>
                   <p className="text-muted-foreground">Cambiar el profesional recalcula la disponibilidad al instante</p>
                 </div>
-                <StaffSelector
-                  staff={staff}
-                  selectedStaffId={selectedStaff}
-                  onSelectStaff={(staffId) => {
-                    setSelectedStaff(staffId);
-                    setSelectedDate(null);
-                    setSelectedTime(null);
-                    setIsAutoSelectedTime(false);
-                  }}
-                  isLoading={false}
-                  allowAnyStaff={true}
-                />
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex min-w-max gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStaff(null);
+                        setSelectedDate(null);
+                        setSelectedTime(null);
+                        setIsAutoSelectedTime(false);
+                      }}
+                      className={cn(
+                        'group flex w-32 shrink-0 flex-col items-center gap-3 rounded-2xl border-2 px-4 py-4 text-center transition-all duration-200 ease-out',
+                        'hover:border-primary/50 hover:bg-primary/5',
+                        selectedStaff === null
+                          ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20'
+                          : 'border-border bg-card'
+                      )}
+                    >
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-center text-xs font-semibold text-foreground">
+                        Cualquiera
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold leading-tight">Cualquiera disponible</p>
+                        <p className="text-xs text-muted-foreground">Asignación automática</p>
+                      </div>
+                    </button>
+
+                    {activeStaff.map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStaff(member.id);
+                          setSelectedDate(null);
+                          setSelectedTime(null);
+                          setIsAutoSelectedTime(false);
+                        }}
+                        className={cn(
+                          'group relative flex w-32 shrink-0 flex-col items-center gap-3 rounded-2xl border-2 px-4 py-4 text-center transition-all duration-200 ease-out',
+                          'hover:border-primary/50 hover:bg-primary/5',
+                          selectedStaff === member.id
+                            ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20'
+                            : 'border-border bg-card'
+                        )}
+                      >
+                        {member.avatar_url ? (
+                          <img
+                            src={member.avatar_url}
+                            alt={member.name}
+                            className="h-16 w-16 rounded-full object-cover ring-2 ring-background"
+                          />
+                        ) : (
+                          <div
+                            className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white"
+                            style={{ backgroundColor: member.color || '#3b82f6' }}
+                          >
+                            {member.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold leading-tight line-clamp-2">{member.name}</p>
+                          {member.role ? <p className="text-xs text-muted-foreground line-clamp-2">{member.role}</p> : null}
+                        </div>
+                        {selectedStaff === member.id ? (
+                          <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-4 w-4" />
+                          </div>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : null}
 
