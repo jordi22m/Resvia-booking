@@ -120,9 +120,16 @@ export default function RegisterPage() {
     setLoading(false);
 
     if (error) {
+      const lowerMessage = (error.message || '').toLowerCase();
+      const friendlyMessage =
+        lowerMessage.includes('database error saving new user') ||
+        lowerMessage.includes('status 500')
+          ? 'Error interno al crear el perfil del negocio. Reintenta en unos segundos. Si persiste, aplica la migración SQL de fix del trigger de registro.'
+          : error.message;
+
       toast({
         title: 'Error al registrarse',
-        description: error.message,
+        description: friendlyMessage,
         variant: 'destructive',
       });
       return;
