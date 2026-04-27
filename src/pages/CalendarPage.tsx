@@ -589,7 +589,7 @@ export default function CalendarPage() {
         setDialogOpen(open);
         if (!open) setEditingAppointmentId(null);
       }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {editingAppointmentId ? (
@@ -611,9 +611,9 @@ export default function CalendarPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-4">
+          <div className="space-y-3 py-2 overflow-y-auto flex-1 pr-1">
             {/* Form Fields */}
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
@@ -694,7 +694,7 @@ export default function CalendarPage() {
                   placeholder="Añade cualquier información adicional..."
                   value={newApt.notes}
                   onChange={e => setNewApt(p => ({ ...p, notes: e.target.value }))}
-                  rows={3}
+                  rows={2}
                   className="text-sm"
                 />
               </div>
@@ -703,7 +703,7 @@ export default function CalendarPage() {
             {/* Summary Preview */}
             {selectedCustomer && selectedService && (
               <Card className="bg-muted/50 border-muted">
-                <CardContent className="p-3 space-y-2 text-sm">
+                <CardContent className="p-2.5 space-y-1 text-sm">
                   <div className="flex justify-between items-start">
                     <span className="font-medium text-foreground">Resumen:</span>
                   </div>
