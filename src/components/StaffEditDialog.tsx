@@ -373,7 +373,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar miembro del equipo' : 'Nuevo miembro del equipo'}</DialogTitle>
           <DialogDescription>
@@ -381,13 +381,13 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="info" className="w-full">
+        <Tabs defaultValue="info" className="w-full flex-1 min-h-0 flex flex-col">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="info">Informacion</TabsTrigger>
             <TabsTrigger value="availability">Horario</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="info" className="space-y-4">
+          <TabsContent value="info" className="space-y-4 overflow-y-auto pr-1 flex-1">
             <div>
               <Label className="text-sm font-medium">Foto de perfil</Label>
               <div className="flex items-center gap-4 mt-2">
@@ -485,7 +485,7 @@ export function StaffEditDialog({ open, onOpenChange, staff }: StaffEditDialogPr
             </div>
           </TabsContent>
 
-          <TabsContent value="availability" className="space-y-3">
+          <TabsContent value="availability" className="space-y-3 overflow-y-auto pr-1 flex-1">
             <p className="text-sm text-muted-foreground">
               Horario compacto por dia. Activa solo los bloques que uses y ajusta sus horas.
             </p>
