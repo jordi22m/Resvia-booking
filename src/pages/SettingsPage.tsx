@@ -194,6 +194,7 @@ export default function SettingsPage() {
         return;
       }
 
+      // ── 1. Datos de perfil (sin logo) ─────────────────────────────────
       const updates: TablesUpdate<'profiles'> = {
         business_name,
         slug,
@@ -215,26 +216,32 @@ export default function SettingsPage() {
         public_booking_description: form.public_booking_description,
       };
 
+      await updateProfile.mutateAsync(updates);
+      toast({ title: 'Perfil actualizado' });
+
+      // ── 2. Logo (separado, no bloquea el guardado anterior) ────────────
       const { logoUrl, warning } = await uploadLogoIfNeeded();
       if (logoUrl !== undefined) {
-        updates.logo_url = logoUrl;
+        try {
+          await updateProfile.mutateAsync({ logo_url: logoUrl });
+        } catch {
+          setLogoWarning('Logo no actualizado en base de datos aunque se subió el archivo.');
+        }
       }
-
-      await updateProfile.mutateAsync(updates);
 
       if (warning) {
         setLogoWarning(warning);
         toast({
-          title: 'Perfil actualizado con aviso',
+          title: 'Logo no guardado',
           description: warning,
           variant: 'destructive',
         });
-      } else {
+      } else if (logoUrl !== undefined) {
         setLogoWarning(null);
-        toast({ title: 'Perfil actualizado' });
       }
     } catch (e: unknown) {
-      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Error inesperado', variant: 'destructive' });
+      const msg = e instanceof Error ? e.message : (e as { message?: string })?.message ?? 'Error inesperado';
+      toast({ title: 'Error al guardar', description: msg, variant: 'destructive' });
     }
   };
 

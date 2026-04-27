@@ -91,7 +91,9 @@ export function useUpdateProfile() {
       
       if (error) {
         console.error('Profile update error:', error);
-        throw error;
+        // Supabase error objects are not instanceof Error; expose message explicitly
+        const msg = (error as { message?: string }).message || JSON.stringify(error);
+        throw new Error(msg);
       }
       return data;
     },
