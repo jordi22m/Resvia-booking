@@ -189,19 +189,23 @@ function TimeSlotButton({
         isSelected && slot.isRecommended && !slot.isPrimaryRecommended && 'border-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.24)]'
       )}
     >
+      {slot.isPrimaryRecommended ? (
+        <div className="mb-3">
+          <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-900 dark:border-amber-700 dark:bg-amber-900/45 dark:text-amber-200">
+            🔥 Mejor opción
+          </span>
+        </div>
+      ) : null}
+      {!slot.isPrimaryRecommended && slot.isRecommended ? (
+        <div className="mb-3">
+          <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+            ⭐ Recomendado
+          </span>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-lg font-semibold tracking-tight">{slot.time}</span>
-          {slot.isPrimaryRecommended ? (
-            <span className="inline-flex items-center rounded-full border border-amber-400 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900 dark:border-amber-700 dark:bg-amber-900/45 dark:text-amber-200">
-              🔥 Mejor opción
-            </span>
-          ) : null}
-          {!slot.isPrimaryRecommended && slot.isRecommended ? (
-            <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
-              ⭐ Recomendado
-            </span>
-          ) : null}
         </div>
         {isSelected ? <Check className="h-4 w-4 shrink-0 text-primary" /> : <Clock className="h-4 w-4 shrink-0 opacity-50 group-hover:opacity-80" />}
       </div>
