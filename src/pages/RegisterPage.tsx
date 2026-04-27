@@ -124,7 +124,7 @@ export default function RegisterPage() {
       const friendlyMessage =
         lowerMessage.includes('database error saving new user') ||
         lowerMessage.includes('status 500')
-          ? 'Error interno al crear el perfil del negocio. Reintenta en unos segundos. Si persiste, aplica la migración SQL de fix del trigger de registro.'
+          ? 'Error interno al crear el perfil del negocio. Reintenta en unos segundos. Si persiste, revisa que la migración SQL de registro esté aplicada correctamente en Supabase.'
           : error.message;
 
       toast({
