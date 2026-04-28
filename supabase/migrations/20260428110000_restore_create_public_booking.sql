@@ -224,3 +224,6 @@ $$;
 GRANT EXECUTE ON FUNCTION public.create_public_booking(
   text, uuid, uuid, date, time, time, text, text, text, text
 ) TO anon, authenticated;
+
+-- Ensure PostgREST sees the function immediately (avoids stale RPC 404).
+NOTIFY pgrst, 'reload schema';
