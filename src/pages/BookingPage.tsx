@@ -322,17 +322,59 @@ async function handleBookingSubmit({
 
   const activeRescheduleToken = rescheduleToken?.trim() || '';
 
-  const { data, error } = activeRescheduleToken
-    ? await supabase.rpc('reschedule_booking_by_token', {
-        p_token: activeRescheduleToken,
-        p_service_id: service.id,
-        p_staff_id: selectedStaff || null,
-        p_date: format(selectedDate, 'yyyy-MM-dd'),
-        p_start_time: selectedTime,
-        p_end_time: end_time,
-        p_notes: formData.notes || null,
-      })
-    : await supabase.rpc('create_public_booking', bookingPayload);
+  let data: unknown = null;
+  let error: { message: string; code?: string } | null = null;
+
+  if (activeRescheduleToken) {
+    const rpcResult = await supabase.rpc('reschedule_booking_by_token', {
+      p_token: activeRescheduleToken,
+      p_service_id: service.id,
+      p_staff_id: selectedStaff || null,
+      p_date: format(selectedDate, 'yyyy-MM-dd'),
+      p_start_time: selectedTime,
+      p_end_time: end_time,
+      p_notes: formData.notes || null,
+    });
+    data = rpcResult.data;
+    error = rpcResult.error;
+  } else {
+    const rpcResult = await supabase.rpc('create_public_booking', bookingPayload);
+    data = rpcResult.data;
+    error = rpcResult.error;
+
+    const shouldRetryDirectFetch = Boolean(error) && (
+      error?.code === 'PGRST202'
+      || /could not find the function public\.create_public_booking/i.test(error?.message || '')
+    );
+
+    if (shouldRetryDirectFetch) {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_public_booking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify(bookingPayload),
+      });
+
+      const body = await response.json().catch(() => null);
+      if (response.ok) {
+        data = body;
+        error = null;
+      } else {
+        error = {
+          code: body?.code,
+          message: typeof body?.message === 'string'
+            ? body.message
+            : 'No pudimos completar tu solicitud. Intenta nuevamente.',
+        };
+      }
+    }
+  }
 
   setSubmitting(false);
   if (error) {
