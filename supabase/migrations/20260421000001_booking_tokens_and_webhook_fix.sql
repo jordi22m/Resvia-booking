@@ -4,8 +4,8 @@
 CREATE TABLE IF NOT EXISTS public.booking_tokens (
   id               UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   appointment_id   UUID        NOT NULL UNIQUE REFERENCES public.appointments(id) ON DELETE CASCADE,
-  cancel_token     TEXT        UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
-  reschedule_token TEXT        UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  cancel_token     TEXT        UNIQUE NOT NULL DEFAULT (replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '')),
+  reschedule_token TEXT        UNIQUE NOT NULL DEFAULT (replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '')),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

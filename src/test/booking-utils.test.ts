@@ -182,7 +182,7 @@ describe('booking-utils', () => {
       {
         now: new Date(2026, 3, 19, 10, 0, 0),
         slotMinutes: 30,
-        serviceIntervalMinutes: 60,
+        serviceSlotStepMinutes: 60,
       }
     );
 
@@ -194,12 +194,65 @@ describe('booking-utils', () => {
       {
         now: new Date(2026, 3, 19, 10, 0, 0),
         slotMinutes: 30,
-        serviceIntervalMinutes: 30,
+        serviceSlotStepMinutes: 30,
       }
     );
 
     expect(slotsEveryHour.map((slot) => slot.time)).toEqual(['09:00', '10:00', '11:00']);
     expect(slotsEveryThirty.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30']);
     expect(slotsEveryHour.map((slot) => slot.time)).not.toContain('11:30');
+  });
+
+  it('mantiene la rejilla global aunque el servicio tenga un paso mayor', () => {
+    const shiftedAvailability: Availability = {
+      ...baseAvailability,
+      id: 'availability-shifted',
+      start_time: '09:30',
+      end_time: '13:30',
+    };
+    const selectedDate = new Date(2026, 3, 20, 9, 30, 0);
+
+    const slots = generateTimeSlots(
+      [shiftedAvailability],
+      [],
+      selectedDate,
+      60,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+        serviceSlotStepMinutes: 60,
+      }
+    );
+
+    expect(slots.map((slot) => slot.time)).toEqual(['10:00', '11:00', '12:00']);
+    expect(slots.map((slot) => slot.time)).not.toContain('09:30');
+    expect(slots.map((slot) => slot.time)).not.toContain('10:30');
+  });
+
+  it('exige que la duracion completa del servicio quepa libre antes de ofrecer un hueco', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+    const conflictingAppointments: Appointment[] = [
+      {
+        ...baseAppointment,
+        id: 'appointment-conflict-late',
+        start_time: '11:00',
+        end_time: '11:30',
+      },
+    ];
+
+    const slots = generateTimeSlots(
+      [baseAvailability],
+      conflictingAppointments,
+      selectedDate,
+      60,
+      {
+        now: new Date(2026, 3, 19, 10, 0, 0),
+        slotMinutes: 30,
+        serviceSlotStepMinutes: 30,
+      }
+    );
+
+    expect(slots.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:00']);
+    expect(slots.map((slot) => slot.time)).not.toContain('10:30');
   });
 });

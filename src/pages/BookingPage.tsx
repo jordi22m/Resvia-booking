@@ -18,7 +18,7 @@ import { useAvailabilityBySlug, useStaffAvailabilityBySlug, type Availability } 
 import { useAvailabilityExceptionsBySlug, type AvailabilityException } from '@/hooks/use-availability-exceptions';
 import { useAppointmentsBySlugAndDate, useAppointmentsBySlugAndDateRange, type Appointment } from '@/hooks/use-appointments';
 import { useCalendarBlocksBySlugAndDateRange, type CalendarBlock } from '@/hooks/use-calendar-blocks';
-import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable, getBestAvailableSlots } from '@/lib/booking-utils';
+import { generateTimeSlots, getDayAvailabilitySummary, isTimeSlotAvailable, getBestAvailableSlots, getRankedAvailableSlots } from '@/lib/booking-utils';
 import { trackRecommendedSlotBooking } from '@/lib/recommended-slot-analytics';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -438,7 +438,7 @@ export default function BookingPage() {
     minNoticeMinutes: profile?.min_notice_minutes ?? 0,
     maxDaysAhead: profile?.max_days_ahead ?? 60,
     minGapMinutes: profile?.min_gap_minutes ?? 0,
-    serviceIntervalMinutes: service?.interval_minutes ?? null,
+    serviceSlotStepMinutes: service?.slot_step_minutes ?? null,
     staffId: selectedStaff,
     exceptions: exceptions ?? [],
     calendarBlocks: monthCalendarBlocks ?? [],
@@ -478,6 +478,13 @@ export default function BookingPage() {
       service.duration || 30,
       bookingRules
     );
+    const rankedSlots = getRankedAvailableSlots(
+      availability,
+      dayAppointments,
+      selectedDate,
+      service.duration || 30,
+      bookingRules
+    );
 
     // Keep recommendations concise for better decision clarity.
     const recommendedSlots = optimizedSlots.slice(0, 3);
@@ -485,6 +492,7 @@ export default function BookingPage() {
     const primaryRecommendedSlots = new Set(recommendedSlots.slice(0, primaryCount));
 
     const recommendationOrder = new Map(recommendedSlots.map((time, index) => [time, index]));
+    const fitOrder = new Map(rankedSlots.map((slot, index) => [slot.time, index]));
 
     return allSlots
       .map((slot) => ({
@@ -502,6 +510,13 @@ export default function BookingPage() {
 
         if (aRank !== undefined) return -1;
         if (bRank !== undefined) return 1;
+
+        const aFitRank = fitOrder.get(a.time) ?? Number.MAX_SAFE_INTEGER;
+        const bFitRank = fitOrder.get(b.time) ?? Number.MAX_SAFE_INTEGER;
+
+        if (aFitRank !== bFitRank) {
+          return aFitRank - bFitRank;
+        }
 
         return a.time.localeCompare(b.time);
       });

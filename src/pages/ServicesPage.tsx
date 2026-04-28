@@ -9,11 +9,32 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useServices, useCreateService, useUpdateService, useDeleteService, type Service } from '@/hooks/use-services';
+import { useProfile } from '@/hooks/use-profile';
 import { useToast } from '@/hooks/use-toast';
 
-const defaultService = { name: '', duration: 30, interval_minutes: null as number | null, price: 0, description: '', category: 'General', color: '#94a3b8', bookable_online: true, requires_staff: true, buffer_before: 0, buffer_after: 0 };
+type ScheduleMode = 'flexible' | 'strict';
+
+const defaultService = { name: '', duration: 30, slot_step_minutes: null as number | null, price: 0, description: '', category: 'General', color: '#94a3b8', bookable_online: true, requires_staff: true, buffer_before: 0, buffer_after: 0 };
+
+const scheduleModeOptions: Array<{ label: string; value: ScheduleMode; description: string }> = [
+  { label: 'Flexible', value: 'flexible', description: 'Rellena huecos siguiendo la rejilla global del negocio.' },
+  { label: 'Estricto', value: 'strict', description: 'Solo permite inicios en horas completas.' },
+];
+
+function getScheduleMode(slotStepMinutes: number | null | undefined, businessSlotInterval: number): ScheduleMode {
+  if (slotStepMinutes === 60 && businessSlotInterval !== 60) {
+    return 'strict';
+  }
+
+  return 'flexible';
+}
+
+function getSlotStepMinutesForMode(mode: ScheduleMode, businessSlotInterval: number): number {
+  return mode === 'strict' ? 60 : businessSlotInterval;
+}
 
 export default function ServicesPage() {
+  const { data: profile } = useProfile();
   const { data: services, isLoading } = useServices();
   const createService = useCreateService();
   const updateService = useUpdateService();
@@ -22,24 +43,55 @@ export default function ServicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
   const [form, setForm] = useState(defaultService);
+  const businessSlotInterval = Math.max(5, profile?.slot_minutes ?? 30);
+  const scheduleMode = getScheduleMode(form.slot_step_minutes, businessSlotInterval);
 
   const categories = [...new Set((services || []).map(s => s.category || 'General'))];
 
   const openCreate = () => { setEditing(null); setForm(defaultService); setDialogOpen(true); };
   const openEdit = (s: Service) => {
     setEditing(s);
-    setForm({ name: s.name, duration: s.duration, interval_minutes: s.interval_minutes ?? null, price: Number(s.price), description: s.description || '', category: s.category || 'General', color: s.color || '#94a3b8', bookable_online: s.bookable_online ?? true, requires_staff: s.requires_staff ?? true, buffer_before: s.buffer_before || 0, buffer_after: s.buffer_after || 0 });
+    setForm({ name: s.name, duration: s.duration, slot_step_minutes: s.slot_step_minutes ?? null, price: Number(s.price), description: s.description || '', category: s.category || 'General', color: s.color || '#94a3b8', bookable_online: s.bookable_online ?? true, requires_staff: s.requires_staff ?? true, buffer_before: s.buffer_before || 0, buffer_after: s.buffer_after || 0 });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
+
+    if (form.duration <= 0) {
+      toast({ title: 'Error', description: 'La duración debe ser mayor que 0.', variant: 'destructive' });
+      return;
+    }
+
+    if (form.duration % businessSlotInterval !== 0) {
+      toast({
+        title: 'Duración no válida',
+        description: `La duración debe ser múltiplo de ${businessSlotInterval} min para respetar la rejilla global del negocio.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (scheduleMode === 'strict' && 60 % businessSlotInterval !== 0) {
+      toast({
+        title: 'Modo estricto no disponible',
+        description: `No se puede usar horas completas con una rejilla global de ${businessSlotInterval} min.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const payload = {
+      ...form,
+      slot_step_minutes: getSlotStepMinutesForMode(scheduleMode, businessSlotInterval),
+    };
+
     try {
       if (editing) {
-        await updateService.mutateAsync({ id: editing.id, ...form });
+        await updateService.mutateAsync({ id: editing.id, ...payload });
         toast({ title: 'Servicio actualizado' });
       } else {
-        await createService.mutateAsync(form);
+        await createService.mutateAsync(payload);
         toast({ title: 'Servicio creado' });
       }
       setDialogOpen(false);
@@ -92,9 +144,9 @@ export default function ServicesPage() {
                     <span className="flex items-center gap-1 text-muted-foreground">
                       <Clock className="h-3.5 w-3.5" /> {service.duration} min
                     </span>
-                    {service.interval_minutes ? (
-                      <span className="text-xs text-muted-foreground">cada {service.interval_minutes} min</span>
-                    ) : null}
+                    <span className="text-xs text-muted-foreground">
+                      {getScheduleMode(service.slot_step_minutes, businessSlotInterval) === 'strict' ? 'modo estricto' : 'modo flexible'}
+                    </span>
                     <span className="flex items-center gap-1 font-medium text-foreground">
                       <DollarSign className="h-3.5 w-3.5" /> {Number(service.price) > 0 ? `€${service.price}` : 'Gratis'}
                     </span>
@@ -134,18 +186,30 @@ export default function ServicesPage() {
                 <Input type="number" value={form.duration} onChange={e => setForm(p => ({ ...p, duration: +e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Intervalo de inicio (min)</Label>
-                <Input
-                  type="number"
-                  min={5}
-                  step={5}
-                  value={form.interval_minutes ?? ''}
-                  placeholder="Usar configuración del negocio"
+                <Label>Modo de agenda</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  value={scheduleMode}
                   onChange={e => {
-                    const rawValue = e.target.value.trim();
-                    setForm(p => ({ ...p, interval_minutes: rawValue ? Number(rawValue) : null }));
+                    const mode = e.target.value as ScheduleMode;
+                    setForm(p => ({ ...p, slot_step_minutes: getSlotStepMinutesForMode(mode, businessSlotInterval) }));
                   }}
-                />
+                >
+                  {scheduleModeOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {scheduleModeOptions.find(option => option.value === scheduleMode)?.description}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Rejilla global: cada {businessSlotInterval} min. Duración del servicio: múltiplos de {businessSlotInterval} min.
+                </p>
+                {scheduleMode === 'strict' ? (
+                  <p className="text-xs text-muted-foreground">Este servicio solo arrancará en horas completas.</p>
+                ) : null}
               </div>
             </div>
             <div className="space-y-2">

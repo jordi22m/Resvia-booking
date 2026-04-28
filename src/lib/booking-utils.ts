@@ -35,7 +35,7 @@ export interface BookingRules {
 export interface SlotQueryOptions extends BookingRules {
   staffId?: string | null;
   now?: Date;
-  serviceIntervalMinutes?: number | null;
+  serviceSlotStepMinutes?: number | null;
   exceptions?: AvailabilityException[];
   calendarBlocks?: CalendarBlock[];
 }
@@ -65,6 +65,21 @@ function normalizeRules(options?: SlotQueryOptions): Required<Omit<BookingRules,
     maxDaysAhead: Math.max(0, options?.maxDaysAhead ?? DEFAULT_RULES.maxDaysAhead),
     minGapMinutes: Math.max(0, options?.minGapMinutes ?? DEFAULT_RULES.minGapMinutes),
   };
+}
+
+function normalizeServiceSlotStepMinutes(options: SlotQueryOptions | undefined, baseSlotMinutes: number): number | null {
+  const requestedStep = options?.serviceSlotStepMinutes ?? null;
+
+  if (requestedStep === null || requestedStep === undefined) {
+    return null;
+  }
+
+  const normalizedStep = Math.max(baseSlotMinutes, requestedStep);
+  if (normalizedStep % baseSlotMinutes !== 0) {
+    return baseSlotMinutes;
+  }
+
+  return normalizedStep;
 }
 
 function isSameStaff(staffA: string | null | undefined, staffB: string | null | undefined): boolean {
@@ -386,7 +401,8 @@ export function generateTimeSlots(
   }
 
   const rules = normalizeRules(options);
-  const interval = Math.max(5, options?.serviceIntervalMinutes || rules.slotMinutes);
+  const globalSlotInterval = rules.slotMinutes;
+  const serviceSlotStepMinutes = normalizeServiceSlotStepMinutes(options, globalSlotInterval);
   const dayOfWeek = getDay(selectedDate);
   const dayAvailabilities = getDayAvailabilitiesWithExceptions(
     availability,
@@ -422,7 +438,10 @@ export function generateTimeSlots(
           options
         );
 
-        if (available) {
+          const startMinutes = toMinutes(timeString);
+          const respectsServiceStep = !serviceSlotStepMinutes || startMinutes % serviceSlotStepMinutes === 0;
+
+          if (available && respectsServiceStep) {
           slots.push({
             time: timeString,
             available: true,
@@ -430,7 +449,7 @@ export function generateTimeSlots(
         }
         seenTimes.add(timeString);
       }
-      currentTime = addMinutes(currentTime, interval);
+        currentTime = addMinutes(currentTime, globalSlotInterval);
     }
   }
 
@@ -444,25 +463,43 @@ export function getBestAvailableSlots(
   serviceDuration: number = 30,
   options?: SlotQueryOptions
 ): string[] {
+  return getRankedAvailableSlots(availability, appointments, date, serviceDuration, options)
+    .slice(0, 5)
+    .map((slot) => slot.time);
+}
+
+export function getRankedAvailableSlots(
+  availability: Availability[],
+  appointments: Appointment[],
+  date: Date,
+  serviceDuration: number = 30,
+  options?: SlotQueryOptions
+): Array<{ time: string; startMinutes: number; totalGap: number; largestGap: number; gapCount: number }> {
   const dayOfWeek = getDay(date);
   const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
   const dayAppointments = getDayAppointments(appointments, date, options?.staffId);
+  const baseSlotInterval = Math.max(5, options?.slotMinutes ?? DEFAULT_RULES.slotMinutes);
 
   return generateTimeSlots(availability, appointments, date, serviceDuration, options)
     .map((slot) => {
       const startMinutes = toMinutes(slot.time);
       const endMinutes = startMinutes + serviceDuration;
       const metrics = getSlotFitMetrics(dayAvailabilities, dayAppointments, startMinutes, endMinutes);
+      const slotWaste = metrics.totalGap % baseSlotInterval;
 
       return {
         time: slot.time,
         startMinutes,
+        slotWaste,
         ...metrics,
       };
     })
     .sort((a, b) => {
       if (a.totalGap !== b.totalGap) {
         return a.totalGap - b.totalGap;
+      }
+      if (a.slotWaste !== b.slotWaste) {
+        return a.slotWaste - b.slotWaste;
       }
       if (a.largestGap !== b.largestGap) {
         return a.largestGap - b.largestGap;
@@ -472,8 +509,7 @@ export function getBestAvailableSlots(
       }
       return a.startMinutes - b.startMinutes;
     })
-    .slice(0, 5)
-    .map((slot) => slot.time);
+    .map(({ slotWaste: _slotWaste, ...slot }) => slot);
 }
 
 export function getAvailableDays(

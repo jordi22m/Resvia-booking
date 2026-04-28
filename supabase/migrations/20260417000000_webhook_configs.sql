@@ -16,7 +16,7 @@ DECLARE
   new_secret TEXT;
 BEGIN
   LOOP
-    new_secret := encode(gen_random_bytes(32), 'hex');
+    new_secret := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.webhook_configs WHERE secret = new_secret);
   END LOOP;
   RETURN new_secret;

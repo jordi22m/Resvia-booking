@@ -55,11 +55,15 @@ export function useSaveWebhookConfig() {
         return data as WebhookConfig;
       }
 
+      const { data: generatedSecret, error: secretError } = await supabase.rpc('generate_webhook_secret');
+      if (secretError) throw secretError;
+
       const insertPayload: TablesInsert<'webhook_configs'> = {
         user_id: user!.id,
         webhook_url: payload.webhook_url,
         selected_events: payload.selected_events,
         active: payload.active,
+        secret: generatedSecret,
       };
 
       const { data, error } = await supabase

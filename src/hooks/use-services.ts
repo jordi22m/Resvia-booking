@@ -6,18 +6,21 @@ import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase
 type RawService = Tables<'services'> & {
   duration?: number | null;
   duration_minutes?: number | null;
+  slot_step_minutes?: number | null;
   interval_minutes?: number | null;
 };
 
 type RawServiceInsert = TablesInsert<'services'> & {
   duration?: number | null;
   duration_minutes?: number | null;
+  slot_step_minutes?: number | null;
   interval_minutes?: number | null;
 };
 
 type RawServiceUpdate = TablesUpdate<'services'> & {
   duration?: number | null;
   duration_minutes?: number | null;
+  slot_step_minutes?: number | null;
   interval_minutes?: number | null;
 };
 
@@ -28,16 +31,24 @@ export type Service = Omit<RawService, 'duration'> & {
 function normalizeService(service: RawService): Service {
   return {
     ...service,
+    slot_step_minutes: service.slot_step_minutes ?? service.interval_minutes ?? null,
     duration: service.duration ?? service.duration_minutes ?? 30,
   };
 }
 
 function toServicePayload(service: RawServiceInsert | RawServiceUpdate) {
-  const { duration, duration_minutes, ...rest } = service;
-  return {
+  const { duration, duration_minutes, slot_step_minutes, interval_minutes, ...rest } = service;
+  const payload: RawServiceInsert | RawServiceUpdate = {
     ...rest,
     duration: duration ?? duration_minutes ?? 30,
   };
+
+  const resolvedSlotStepMinutes = slot_step_minutes ?? interval_minutes;
+  if (resolvedSlotStepMinutes !== null && resolvedSlotStepMinutes !== undefined) {
+    payload.slot_step_minutes = resolvedSlotStepMinutes;
+  }
+
+  return payload;
 }
 
 export function useServices() {
@@ -83,11 +94,14 @@ export function useCreateService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (service: Omit<RawServiceInsert, 'user_id'>) => {
+      const payload = toServicePayload(service);
+
       const { data, error } = await supabase
         .from('services')
-        .insert({ ...toServicePayload(service), user_id: user!.id })
+        .insert({ ...payload, user_id: user!.id })
         .select()
         .single();
+
       if (error) throw error;
       return normalizeService(data as RawService);
     },
@@ -99,12 +113,15 @@ export function useUpdateService() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: RawServiceUpdate & { id: string }) => {
+      const payload = toServicePayload(updates);
+
       const { data, error } = await supabase
         .from('services')
-        .update(toServicePayload(updates))
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
+
       if (error) throw error;
       return normalizeService(data as RawService);
     },
