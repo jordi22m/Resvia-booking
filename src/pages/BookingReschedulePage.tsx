@@ -73,7 +73,7 @@ export default function BookingReschedulePage() {
     }
 
     setRedirecting(true);
-    navigate(`/book/${booking.business_slug}?rescheduleToken=${encodeURIComponent(normalizedToken)}`);
+    navigate(`/book/${booking.business_slug}?flow=reschedule&rescheduleToken=${encodeURIComponent(normalizedToken)}`);
   };
 
   if (loading) {

@@ -320,9 +320,11 @@ async function handleBookingSubmit({
     p_notes: formData.notes || null,
   };
 
-  const { data, error } = rescheduleToken
+  const activeRescheduleToken = rescheduleToken?.trim() || '';
+
+  const { data, error } = activeRescheduleToken
     ? await supabase.rpc('reschedule_booking_by_token', {
-        p_token: rescheduleToken,
+        p_token: activeRescheduleToken,
         p_service_id: service.id,
         p_staff_id: selectedStaff || null,
         p_date: format(selectedDate, 'yyyy-MM-dd'),
@@ -336,7 +338,7 @@ async function handleBookingSubmit({
   if (error) {
     const friendlyError = toUserBookingError(error.message);
     toast({
-      title: rescheduleToken ? 'No se pudo reprogramar' : 'Error al crear reserva',
+      title: activeRescheduleToken ? 'No se pudo reprogramar' : 'Error al crear reserva',
       description: friendlyError,
       variant: 'destructive'
     });
@@ -345,11 +347,11 @@ async function handleBookingSubmit({
     const baseUrl = window.location.origin;
     const rpcData = (typeof data === 'object' && data !== null ? data : { public_id: data }) as BookingRpcResult;
     const cancelToken = rpcData.cancel_token ?? null;
-    const nextRescheduleToken = rpcData.reschedule_token ?? rescheduleToken ?? null;
+    const nextRescheduleToken = rpcData.reschedule_token ?? activeRescheduleToken ?? null;
     const cancelUrl = cancelToken ? `${baseUrl}/booking/cancel/${cancelToken}` : null;
     const rescheduleUrl = nextRescheduleToken ? `${baseUrl}/booking/reschedule/${nextRescheduleToken}` : null;
     setConfirmationData({
-      flow: rescheduleToken ? 'reschedule' : 'booking',
+      flow: activeRescheduleToken ? 'reschedule' : 'booking',
       publicId: rpcData.public_id ?? null,
       cancelUrl,
       rescheduleUrl,
@@ -363,7 +365,9 @@ export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const rescheduleToken = searchParams.get('rescheduleToken')?.trim() || '';
-  const isRescheduleFlow = Boolean(rescheduleToken);
+  const flowMode = searchParams.get('flow')?.trim().toLowerCase() || '';
+  const isRescheduleFlow = flowMode === 'reschedule' && Boolean(rescheduleToken);
+  const activeRescheduleToken = isRescheduleFlow ? rescheduleToken : '';
   
   // State hooks first
   const [step, setStep] = useState<Step>('booking');
@@ -1328,7 +1332,7 @@ export default function BookingPage() {
                         availability: availability || [],
                         appointments: dayAppointments || [],
                         calendarBlocks: monthCalendarBlocks || [],
-                        rescheduleToken: rescheduleToken || null,
+                        rescheduleToken: activeRescheduleToken || null,
                         setSubmitting,
                         setConfirmationData,
                         setStep,
