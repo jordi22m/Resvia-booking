@@ -308,16 +308,13 @@ async function handleBookingSubmit({
   const end_time = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
   const bookingPayload = {
-    p_slug: slug,
-    p_service_id: service.id,
-    p_staff_id: selectedStaff || null,
-    p_date: format(selectedDate, 'yyyy-MM-dd'),
-    p_start_time: selectedTime,
-    p_end_time: end_time,
-    p_customer_name: formData.name,
-    p_customer_phone: formData.phone,
-    p_customer_email: formData.email || null,
-    p_notes: formData.notes || null,
+    slug: slug,
+    service_id: service.id,
+    name: formData.name,
+    phone: formData.phone,
+    email: formData.email || null,
+    date: format(selectedDate, 'yyyy-MM-dd'),
+    start_time: selectedTime,
   };
 
   const activeRescheduleToken = rescheduleToken?.trim() || '';
