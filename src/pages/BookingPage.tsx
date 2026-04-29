@@ -339,7 +339,10 @@ async function handleBookingSubmit({
     data = rpcResult.data;
     error = rpcResult.error;
   } else {
-    const rpcResult = await supabase.rpc('create_public_booking_v2', bookingPayload);
+    console.log('PAYLOAD FINAL', bookingPayload);
+    const rpcResult = await supabase.rpc('create_public_booking_v2', {
+      payload: bookingPayload
+    });
     data = rpcResult.data;
     error = rpcResult.error;
 
