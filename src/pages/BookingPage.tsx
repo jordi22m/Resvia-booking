@@ -308,13 +308,16 @@ async function handleBookingSubmit({
   const end_time = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
   const bookingPayload = {
-    slug,
-    service_id: String(service.id),
-    name: formData.name,
-    phone: formData.phone,
-    email: formData.email ?? null,
-    date: selectedDate.toISOString().split('T')[0],
-    start_time: (selectedTime || '').slice(0, 5) + ':00',
+    p_slug: slug,
+    p_service_id: service.id,
+    p_staff_id: selectedStaff || null,
+    p_date: selectedDate.toISOString().split('T')[0],
+    p_start_time: (selectedTime || '').slice(0, 5) + ':00',
+    p_end_time: `${end_time}:00`,
+    p_customer_name: formData.name,
+    p_customer_phone: formData.phone,
+    p_customer_email: formData.email ?? null,
+    p_notes: formData.notes || null,
   };
 
   console.log('[BookingPage] bookingPayload', bookingPayload);
@@ -338,9 +341,7 @@ async function handleBookingSubmit({
     error = rpcResult.error;
   } else {
     console.log('PAYLOAD FINAL', bookingPayload);
-    const rpcResult = await supabase.rpc('create_public_booking_v2', {
-      payload: bookingPayload
-    });
+    const rpcResult = await supabase.rpc('create_public_booking_v2', bookingPayload);
     data = rpcResult.data;
     error = rpcResult.error;
 
