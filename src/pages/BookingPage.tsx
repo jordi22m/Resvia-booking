@@ -345,37 +345,23 @@ async function handleBookingSubmit({
     data = rpcResult.data;
     error = rpcResult.error;
 
-    const shouldRetryDirectFetch = Boolean(error) && (
-      error?.code === 'PGRST202'
-      || /could not find the function public\.create_public_booking/i.test(error?.message || '')
-    );
+    // Compatibilidad entre despliegues: algunos entornos exponen create_public_booking_v2
+    // con args p_* y otros con args sin prefijo.
+    if (error?.code === 'PGRST202') {
+      const legacyPayload = {
+        slug,
+        service_id: service.id,
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email ?? null,
+        date: selectedDate.toISOString().split('T')[0],
+        start_time: (selectedTime || '').slice(0, 5) + ':00',
+      };
 
-    if (shouldRetryDirectFetch) {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-
-      const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_public_booking_v2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify(bookingPayload),
-      });
-
-      const body = await response.json().catch(() => null);
-      if (response.ok) {
-        data = body;
-        error = null;
-      } else {
-        error = {
-          code: body?.code,
-          message: typeof body?.message === 'string'
-            ? body.message
-            : 'No pudimos completar tu solicitud. Intenta nuevamente.',
-        };
-      }
+      console.warn('[BookingPage] fallback to legacy create_public_booking_v2 signature', legacyPayload);
+      const legacyRpcResult = await supabase.rpc('create_public_booking_v2', legacyPayload);
+      data = legacyRpcResult.data;
+      error = legacyRpcResult.error;
     }
   }
 
