@@ -338,7 +338,7 @@ async function handleBookingSubmit({
     data = rpcResult.data;
     error = rpcResult.error;
   } else {
-    const rpcResult = await supabase.rpc('create_public_booking', bookingPayload);
+    const rpcResult = await supabase.rpc('create_public_booking_v2', bookingPayload);
     data = rpcResult.data;
     error = rpcResult.error;
 
@@ -351,7 +351,7 @@ async function handleBookingSubmit({
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_public_booking`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_public_booking_v2`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
