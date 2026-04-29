@@ -313,9 +313,13 @@ async function handleBookingSubmit({
     name: formData.name,
     phone: formData.phone,
     email: formData.email || null,
-    date: format(selectedDate, 'yyyy-MM-dd'),
-    start_time: selectedTime,
+    date: selectedDate instanceof Date
+      ? selectedDate.toISOString().split('T')[0]
+      : format(selectedDate, 'yyyy-MM-dd'),
+    start_time: (selectedTime || '').slice(0, 5),
   };
+
+  console.log('[BookingPage] bookingPayload', bookingPayload);
 
   const activeRescheduleToken = rescheduleToken?.trim() || '';
 
