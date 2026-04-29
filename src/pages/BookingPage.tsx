@@ -308,14 +308,12 @@ async function handleBookingSubmit({
   const end_time = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
   const bookingPayload = {
-    slug: slug,
-    service_id: service.id,
+    slug,
+    service_id: String(service.id),
     name: formData.name,
     phone: formData.phone,
-    email: formData.email || null,
-    date: selectedDate instanceof Date
-      ? selectedDate.toISOString().split('T')[0]
-      : format(selectedDate, 'yyyy-MM-dd'),
+    email: formData.email ?? null,
+    date: selectedDate.toISOString().split('T')[0],
     start_time: (selectedTime || '').slice(0, 5) + ':00',
   };
 
