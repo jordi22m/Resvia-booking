@@ -311,7 +311,7 @@ async function handleBookingSubmit({
     p_slug: slug,
     p_service_id: service.id,
     p_staff_id: selectedStaff || null,
-    p_date: selectedDate.toISOString().split('T')[0],
+    p_date: format(selectedDate, 'yyyy-MM-dd'),
     p_start_time: (selectedTime || '').slice(0, 5) + ':00',
     p_end_time: `${end_time}:00`,
     p_customer_name: formData.name,
@@ -354,7 +354,7 @@ async function handleBookingSubmit({
         name: formData.name,
         phone: formData.phone,
         email: formData.email ?? null,
-        date: selectedDate.toISOString().split('T')[0],
+        date: format(selectedDate, 'yyyy-MM-dd'),
         start_time: (selectedTime || '').slice(0, 5) + ':00',
       };
 
