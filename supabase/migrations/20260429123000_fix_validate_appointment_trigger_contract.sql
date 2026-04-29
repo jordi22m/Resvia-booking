@@ -5,6 +5,12 @@
 -- This migration forces a stable contract based on NEW.user_id.
 -- =============================================================================
 
+-- Important: CREATE OR REPLACE cannot rename input arguments for an existing
+-- function signature. Drop trigger/functions first to avoid 42P13.
+DROP TRIGGER IF EXISTS check_appointment_overlap_trg ON public.appointments;
+DROP FUNCTION IF EXISTS public.check_appointment_overlap();
+DROP FUNCTION IF EXISTS public.validate_appointment_availability(UUID, DATE, TIME, TIME);
+
 CREATE OR REPLACE FUNCTION public.validate_appointment_availability(
   p_user_id UUID,
   p_date DATE,
