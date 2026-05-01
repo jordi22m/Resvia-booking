@@ -152,6 +152,10 @@ function getAppointmentEndMinutes(appointment: Appointment): number {
   return start + 30;
 }
 
+function isActiveAppointment(appointment: Appointment): boolean {
+  return appointment.status === 'confirmed' || appointment.status === 'pending';
+}
+
 function getDayAppointments(
   appointments: Appointment[],
   date: Date,
@@ -162,7 +166,7 @@ function getDayAppointments(
   return appointments.filter((appointment) => {
     if (
       appointment.date !== dateStr ||
-      appointment.status === 'canceled' ||
+      !isActiveAppointment(appointment) ||
       (staffId !== undefined && !isSameStaff(appointment.staff_id, staffId))
     ) {
       return false;
@@ -624,7 +628,8 @@ export function getAvailableSlotCount(
   serviceDuration: number = 30,
   options?: SlotQueryOptions
 ): number {
-  const dayAppointments = appointments.filter((apt) => apt.date === format(date, 'yyyy-MM-dd'));
+  const dateStr = format(date, 'yyyy-MM-dd');
+  const dayAppointments = appointments.filter((apt) => apt.date === dateStr && isActiveAppointment(apt));
   const slots = generateTimeSlots(availability, dayAppointments, date, serviceDuration, options);
   return slots.length;
 }
@@ -636,7 +641,8 @@ export function getDayAvailabilitySummary(
   serviceDuration: number = 30,
   options?: SlotQueryOptions
 ): DayAvailabilitySummary {
-  const dayAppointments = appointments.filter((apt) => apt.date === format(date, 'yyyy-MM-dd'));
+  const dateStr = format(date, 'yyyy-MM-dd');
+  const dayAppointments = appointments.filter((apt) => apt.date === dateStr && isActiveAppointment(apt));
   const slots = generateTimeSlots(availability, dayAppointments, date, serviceDuration, options);
   const availableSlots = slots.length;
 

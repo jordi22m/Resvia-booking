@@ -255,4 +255,70 @@ describe('booking-utils', () => {
     expect(slots.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:00']);
     expect(slots.map((slot) => slot.time)).not.toContain('10:30');
   });
+
+  describe('citas canceladas no bloquean disponibilidad', () => {
+    const selectedDate = new Date(2026, 3, 20, 9, 0, 0);
+    const opts = { now: new Date(2026, 3, 19, 10, 0, 0), slotMinutes: 30 };
+
+    it.each([
+      ['cancelled'],
+      ['canceled'],
+      ['noshow'],
+      ['completed'],
+      ['rescheduled'],
+    ])('ignora citas con status "%s" al calcular slots', (inactiveStatus) => {
+      const inactiveAppointment: Appointment = {
+        ...baseAppointment,
+        status: inactiveStatus as Appointment['status'],
+      };
+
+      const slots = generateTimeSlots(
+        [baseAvailability],
+        [inactiveAppointment],
+        selectedDate,
+        30,
+        opts
+      );
+
+      // El slot de 09:30 debe estar libre porque la cita está inactiva
+      expect(slots.map((s) => s.time)).toContain('09:30');
+    });
+
+    it('sigue bloqueando slots con citas confirmed o pending', () => {
+      const confirmedAppointment: Appointment = { ...baseAppointment, status: 'confirmed' };
+      const pendingAppointment: Appointment = { ...baseAppointment, id: 'apt-2', start_time: '10:00', end_time: '10:30', status: 'pending' };
+
+      const slots = generateTimeSlots(
+        [baseAvailability],
+        [confirmedAppointment, pendingAppointment],
+        selectedDate,
+        30,
+        opts
+      );
+
+      expect(slots.map((s) => s.time)).not.toContain('09:30');
+      expect(slots.map((s) => s.time)).not.toContain('10:00');
+    });
+
+    it('getDayAvailabilitySummary no cuenta citas canceladas como bloqueantes', () => {
+      const cancelledAppointment: Appointment = { ...baseAppointment, status: 'canceled' };
+
+      const summaryWithCancelled = getDayAvailabilitySummary(
+        [baseAvailability],
+        [cancelledAppointment],
+        selectedDate,
+        30,
+        opts
+      );
+      const summaryWithNoAppointments = getDayAvailabilitySummary(
+        [baseAvailability],
+        [],
+        selectedDate,
+        30,
+        opts
+      );
+
+      expect(summaryWithCancelled.availableSlots).toBe(summaryWithNoAppointments.availableSlots);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -96,7 +96,7 @@ function TimeSlotsSkeleton({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function CalendarDayButton({
+const CalendarDayButton = memo(function CalendarDayButton({
   date,
   isCurrentMonth,
   isSelected,
@@ -159,9 +159,9 @@ function CalendarDayButton({
       </TooltipContent>
     </Tooltip>
   );
-}
+});
 
-function TimeSlotButton({
+const TimeSlotButton = memo(function TimeSlotButton({
   slot,
   isSelected,
   isAutoSelected,
@@ -234,7 +234,7 @@ function TimeSlotButton({
       </TooltipContent>
     </Tooltip>
   );
-}
+});
 
 async function handleBookingSubmit({
   slug,
@@ -433,12 +433,6 @@ export default function BookingPage() {
   const { data: exceptions, isLoading: loadingExceptions } = useAvailabilityExceptionsBySlug(slug);
   const { toast } = useToast();
 
-  // ── Debug logs ──────────────────────────────────────────────────────────────
-  useEffect(() => { console.log('[BookingPage] slug', slug); }, [slug]);
-  useEffect(() => { console.log('[BookingPage] profile', profile, 'error', profileError); }, [profile, profileError]);
-  useEffect(() => { console.log('[BookingPage] services', services, 'error', servicesError); }, [services, servicesError]);
-  useEffect(() => { console.log('[BookingPage] availability', availability, 'error', availabilityError); }, [availability, availabilityError]);
-  // ────────────────────────────────────────────────────────────────────────────
 
   // Monitor timeout: si tarda > 8s cargando, mostrar error
   useEffect(() => {
@@ -577,17 +571,17 @@ export default function BookingPage() {
   }, [availability, monthAppointments, service, calendarDays, bookingRules]);
 
   // Check if a day has available slots
-  const isDayAvailableForBooking = (date: Date) => {
+  const isDayAvailableForBooking = useCallback((date: Date) => {
     const key = format(date, 'yyyy-MM-dd');
     return monthDayAvailabilityMap.get(key)?.isAvailable ?? false;
-  };
+  }, [monthDayAvailabilityMap]);
 
-  const getDaySlotCount = (date: Date) => {
+  const getDaySlotCount = useCallback((date: Date) => {
     const key = format(date, 'yyyy-MM-dd');
     return monthDayAvailabilityMap.get(key)?.availableSlots ?? 0;
-  };
+  }, [monthDayAvailabilityMap]);
 
-  const getDayHoverLabel = (date: Date) => {
+  const getDayHoverLabel = useCallback((date: Date) => {
     const availableSlotsCount = getDaySlotCount(date);
 
     if (availableSlotsCount > 0) {
@@ -599,7 +593,7 @@ export default function BookingPage() {
     }
 
     return 'Sin huecos disponibles';
-  };
+  }, [getDaySlotCount, currentMonth]);
 
   const selectedDateLabel = useMemo(() => {
     if (!selectedDate) return null;
@@ -657,10 +651,25 @@ export default function BookingPage() {
     setIsAutoSelectedTime(true);
   }, [availableTimeSlots, loadingDayAppointments, selectedTime]);
 
-  const changeMonth = (direction: 'next' | 'prev') => {
+  const changeMonth = useCallback((direction: 'next' | 'prev') => {
     setMonthDirection(direction);
     setCurrentMonth((prev) => (direction === 'next' ? addMonths(prev, 1) : subMonths(prev, 1)));
-  };
+  }, []);
+
+  const handleDateSelect = useCallback((nextDate: Date) => {
+    setSelectedDate(nextDate);
+    setSelectedTime(null);
+    setIsAutoSelectedTime(false);
+  }, []);
+
+  const handleTimeSelect = useCallback((time: string) => {
+    setSelectedTime(time);
+    setIsAutoSelectedTime(false);
+    toast({
+      title: 'Horario seleccionado',
+      description: `${time} (${service?.duration || 30} min)`,
+    });
+  }, [service?.duration, toast]);
 
   useEffect(() => {
     if (!selectedDate || !timeSectionRef.current) return;
@@ -1033,6 +1042,9 @@ export default function BookingPage() {
                           <img
                             src={member.avatar_url}
                             alt={member.name}
+                            width={80}
+                            height={80}
+                            loading="lazy"
                             className="h-20 w-20 rounded-full object-cover ring-2 ring-background"
                           />
                         ) : (
@@ -1132,11 +1144,7 @@ export default function BookingPage() {
                           hasAvailability={hasAvailability}
                           availableSlotsCount={availableSlotsCount}
                           hoverLabel={getDayHoverLabel(date)}
-                          onSelect={(nextDate) => {
-                            setSelectedDate(nextDate);
-                            setSelectedTime(null);
-                            setIsAutoSelectedTime(false);
-                          }}
+                          onSelect={handleDateSelect}
                         />
                       );
                     })}
@@ -1216,14 +1224,7 @@ export default function BookingPage() {
                             slot={slot}
                             isSelected={selectedTime === slot.time}
                             isAutoSelected={Boolean(isAutoSelectedTime && selectedTime === slot.time)}
-                            onSelect={(time) => {
-                              setSelectedTime(time);
-                              setIsAutoSelectedTime(false);
-                              toast({
-                                title: 'Horario seleccionado',
-                                description: `${time} (${service?.duration || 30} min)`
-                              });
-                            }}
+                            onSelect={handleTimeSelect}
                           />
                         ))}
                       </div>

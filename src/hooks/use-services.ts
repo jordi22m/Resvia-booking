@@ -85,6 +85,7 @@ export function useServicesByUserId(userId: string | undefined) {
       return (data as RawService[]).map(normalizeService);
     },
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 }
