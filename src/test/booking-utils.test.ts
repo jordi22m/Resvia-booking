@@ -261,7 +261,6 @@ describe('booking-utils', () => {
     const opts = { now: new Date(2026, 3, 19, 10, 0, 0), slotMinutes: 30 };
 
     it.each([
-      ['cancelled'],
       ['canceled'],
       ['noshow'],
       ['completed'],
@@ -301,11 +300,11 @@ describe('booking-utils', () => {
     });
 
     it('getDayAvailabilitySummary no cuenta citas canceladas como bloqueantes', () => {
-      const cancelledAppointment: Appointment = { ...baseAppointment, status: 'canceled' };
+      const canceledAppointment: Appointment = { ...baseAppointment, status: 'canceled' };
 
-      const summaryWithCancelled = getDayAvailabilitySummary(
+      const summaryWithCanceled = getDayAvailabilitySummary(
         [baseAvailability],
-        [cancelledAppointment],
+        [canceledAppointment],
         selectedDate,
         30,
         opts
@@ -318,7 +317,7 @@ describe('booking-utils', () => {
         opts
       );
 
-      expect(summaryWithCancelled.availableSlots).toBe(summaryWithNoAppointments.availableSlots);
+      expect(summaryWithCanceled.availableSlots).toBe(summaryWithNoAppointments.availableSlots);
     });
   });
 });

@@ -25,7 +25,7 @@ function getAppointmentStatusClasses(status?: string) {
   switch (status) {
     case 'confirmed':
       return { badge: 'Confirmada', color: 'text-emerald-700 dark:text-emerald-400' };
-    case 'cancelled':
+    case 'canceled':
       return { badge: 'Cancelada', color: 'text-red-700 dark:text-red-400' };
     case 'pending':
     default:

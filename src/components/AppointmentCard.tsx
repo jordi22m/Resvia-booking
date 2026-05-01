@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 export type AppointmentStatus =
   | 'confirmed'
   | 'pending'
-  | 'cancelled'
   | 'canceled'
   | 'completed'
   | 'blocked'
@@ -33,7 +32,6 @@ export function getAppointmentStyles(status?: AppointmentStatus): AppointmentSty
         badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200',
         badgeText: 'Confirmada',
       };
-    case 'cancelled':
     case 'canceled':
       return {
         background: 'bg-slate-200/85 dark:bg-slate-800/65',

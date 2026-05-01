@@ -33,7 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const notificationContainerRef = useRef<HTMLDivElement | null>(null);
   const previousAppointmentsRef = useRef<Map<string, { status: string | null; date: string; start_time: string }>>(new Map());
 
-  type NotificationType = 'new_booking' | 'cancelled_booking';
+  type NotificationType = 'new_booking' | 'canceled_booking';
   type AppNotification = {
     id: string;
     type: NotificationType;
@@ -134,12 +134,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       const prevStatus = (previous.status || '').toLowerCase();
       const currentStatus = (current.status || '').toLowerCase();
-      const isNowCancelled = currentStatus === 'cancelled' || currentStatus === 'canceled';
-      const wasCancelled = prevStatus === 'cancelled' || prevStatus === 'canceled';
+      const isNowCanceled = currentStatus === 'canceled';
+      const wasCanceled = prevStatus === 'canceled';
 
-      if (!wasCancelled && isNowCancelled) {
+      if (!wasCanceled && isNowCanceled) {
         pushNotification({
-          type: 'cancelled_booking',
+          type: 'canceled_booking',
           title: 'Reserva cancelada',
           message: `Se canceló la cita del ${current.date} a las ${current.start_time}`,
         });

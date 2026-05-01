@@ -11,7 +11,7 @@ export interface WebhookEvent {
 export const CANONICAL_WEBHOOK_EVENTS = [
   'booking.created',
   'booking.confirmed',
-  'booking.cancelled',
+  'booking.canceled',
   'booking.rescheduled',
   'booking.completed',
   'customer.created',
