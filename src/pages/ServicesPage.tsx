@@ -168,14 +168,14 @@ export default function ServicesPage() {
       ))}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="border-b px-6 py-4">
             <DialogTitle>{editing ? 'Editar servicio' : 'Nuevo servicio'}</DialogTitle>
             <DialogDescription className="sr-only">
               {editing ? 'Edita los datos del servicio seleccionado.' : 'Crea un nuevo servicio para tu negocio.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="max-h-[calc(90vh-170px)] space-y-4 overflow-y-auto px-6 py-4">
             <div className="space-y-2">
               <Label>Nombre *</Label>
               <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Ej: Corte de pelo" />
@@ -229,7 +229,7 @@ export default function ServicesPage() {
               <Input type="color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} className="h-10 w-20" />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="border-t bg-background px-6 py-4">
             <Button variant="outline" onClick={() => setDialogOpen(false)} translate="no">
               <span>Cancelar</span>
             </Button>
