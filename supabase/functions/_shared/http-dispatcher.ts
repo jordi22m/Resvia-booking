@@ -122,7 +122,13 @@ export async function dispatchWebhookEvent(
 
 export async function dispatchPendingWebhookEvents(
   supabase: any,
-  options: { eventId?: string | null; limit?: number; retryBaseSeconds?: number; globalMaxAttempts?: number } = {},
+  options: {
+    eventId?: string | null;
+    eventTypes?: string[];
+    limit?: number;
+    retryBaseSeconds?: number;
+    globalMaxAttempts?: number;
+  } = {},
 ) {
   const limit = Number(options.limit ?? 20);
 
@@ -135,6 +141,10 @@ export async function dispatchPendingWebhookEvents(
 
   if (options.eventId) {
     query = query.eq('id', options.eventId);
+  }
+
+  if (Array.isArray(options.eventTypes) && options.eventTypes.length > 0) {
+    query = query.in('event_type', options.eventTypes);
   }
 
   const { data: events, error } = await query;

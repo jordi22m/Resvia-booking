@@ -13,14 +13,21 @@ Deno.serve(async (req) => {
     const reqBody = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const limit = Number(reqBody.limit ?? url.searchParams.get('limit') ?? '20');
     const eventId = reqBody.event_id ?? url.searchParams.get('event_id') ?? null;
+    const rawEventTypes = reqBody.event_types ?? url.searchParams.get('event_types') ?? null;
+    const eventTypes = Array.isArray(rawEventTypes)
+      ? rawEventTypes.filter((x: unknown) => typeof x === 'string' && x.trim().length > 0)
+      : typeof rawEventTypes === 'string' && rawEventTypes.trim().length > 0
+        ? rawEventTypes.split(',').map((x: string) => x.trim()).filter((x: string) => x.length > 0)
+        : undefined;
     const retryBaseSeconds = Number(Deno.env.get('WEBHOOK_RETRY_BASE_SECONDS') ?? '30');
     const globalMaxAttempts = Number(Deno.env.get('WEBHOOK_MAX_ATTEMPTS') ?? '5');
 
-    console.info('[send-webhook] start', { limit, eventId, retryBaseSeconds, globalMaxAttempts });
+    console.info('[send-webhook] start', { limit, eventId, eventTypes, retryBaseSeconds, globalMaxAttempts });
 
     const result = await dispatchPendingWebhookEvents(supabase, {
       limit,
       eventId,
+      eventTypes,
       retryBaseSeconds,
       globalMaxAttempts,
     });
