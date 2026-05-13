@@ -77,7 +77,7 @@ export function useAppointmentsBySlugAndDate(slug: string | undefined, date: str
 }
 
 export function useAppointments() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const qc = useQueryClient();
   const processedAutoConfirmIds = useRef<Set<string>>(new Set());
 
@@ -93,10 +93,11 @@ export function useAppointments() {
       if (error) throw error;
       return data as Appointment[];
     },
-    enabled: !!user,
+    enabled: !!user && !!session?.access_token,
   });
 
   useEffect(() => {
+    if (!user || !session?.access_token) return;
     if (!query.data || !query.data.length) return;
 
     const now = new Date();
@@ -118,15 +119,18 @@ export function useAppointments() {
       const { error } = await supabase
         .from('appointments')
         .update({ status: 'confirmed' })
+        .eq('user_id', user.id)
         .in('id', idsToConfirm);
 
       if (!error) {
         qc.invalidateQueries({ queryKey: ['appointments'] });
+      } else {
+        console.warn('Auto-confirm appointments skipped:', error.message);
       }
     };
 
     void confirmAppointments();
-  }, [query.data, qc]);
+  }, [query.data, qc, session?.access_token, user]);
 
   return query;
 }
