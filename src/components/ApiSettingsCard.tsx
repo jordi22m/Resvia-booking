@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
 type ApiKeyInfo = {
@@ -24,12 +25,8 @@ type ApiKeyInfo = {
 type RpcError = { message?: string } | null;
 
 async function callRpc<T>(fn: string, args?: Record<string, unknown>): Promise<{ data: T; error: RpcError }> {
-  const rpc = supabase.rpc as unknown as (
-    name: string,
-    params?: Record<string, unknown>
-  ) => Promise<{ data: T; error: RpcError }>;
-
-  return rpc(fn, args);
+  const { data, error } = await supabase.rpc(fn, args);
+  return { data: data as T, error: error as RpcError };
 }
 
 function formatDateTime(value?: string | null) {
@@ -43,6 +40,7 @@ function formatDateTime(value?: string | null) {
 export function ApiSettingsCard() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { session, loading: authLoading } = useAuth();
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<'idle' | 'ok' | 'error'>('idle');
 
@@ -50,10 +48,16 @@ export function ApiSettingsCard() {
     const base = import.meta.env.VITE_SUPABASE_URL;
     return base ? `${base}/functions/v1/public-api/api/v1` : '';
   }, []);
+  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const isAuthReady = !authLoading && Boolean(session?.access_token);
 
   const infoQuery = useQuery({
     queryKey: ['developers-api', 'info'],
+    enabled: isAuthReady,
     queryFn: async () => {
+      if (!session?.access_token) {
+        throw new Error('Sesion no disponible. Inicia sesion de nuevo.');
+      }
       const { data, error } = await callRpc<ApiKeyInfo>('get_workspace_api_key_info');
       if (error) throw new Error(error.message || 'No se pudo cargar la configuración API');
       return data as ApiKeyInfo;
@@ -67,6 +71,7 @@ export function ApiSettingsCard() {
       const response = await fetch(`${apiBaseUrl}/me`, {
         headers: {
           Authorization: `Bearer ${apiKey}`,
+          ...(publishableKey ? { apikey: publishableKey } : {}),
         },
       });
 
@@ -78,6 +83,9 @@ export function ApiSettingsCard() {
 
   const rotateKey = useMutation({
     mutationFn: async () => {
+      if (!session?.access_token) {
+        throw new Error('Sesion no disponible. Inicia sesion de nuevo.');
+      }
       const { data, error } = await callRpc<{ api_key: string }>('rotate_workspace_api_key', {
         p_permissions: {},
       });
@@ -222,7 +230,7 @@ export function ApiSettingsCard() {
           <Button
             type="button"
             onClick={() => rotateKey.mutate()}
-            disabled={rotateKey.isPending || infoQuery.isLoading}
+            disabled={rotateKey.isPending || infoQuery.isLoading || !isAuthReady}
           >
             {rotateKey.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCcw className="h-4 w-4 mr-1.5" />}
             {info?.has_active_key ? 'Regenerar key' : 'Generar key'}
