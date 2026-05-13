@@ -5,3 +5,6 @@ enabled = true
 
 [db]
 port = 54321
+
+[functions.public-api]
+verify_jwt = false

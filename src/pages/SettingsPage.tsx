@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { isPushSupported, isSubscribed, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import { AvailabilitySettings } from '@/components/AvailabilitySettings';
 import { AvailabilityExceptionsSettings } from '@/components/AvailabilityExceptionsSettings';
+import { ApiSettingsCard } from '@/components/ApiSettingsCard';
 import { StaffEditDialog } from '@/components/StaffEditDialog';
 import type { TablesUpdate } from '@/integrations/supabase/types';
 import { supabase } from '@/lib/supabase';
@@ -464,6 +465,8 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <ApiSettingsCard />
 
       <Card>
         <CardHeader>
