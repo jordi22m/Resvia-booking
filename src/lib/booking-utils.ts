@@ -1,8 +1,14 @@
 import { addMinutes, format, getDay, isBefore, isSameDay, startOfDay } from 'date-fns';
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
-import type { AvailabilityException } from '@/hooks/use-availability-exceptions';
 import type { CalendarBlock } from '@/hooks/use-calendar-blocks';
+
+type SlotAvailabilityException = {
+  exception_date: string;
+  is_closed: boolean;
+  start_time: string | null;
+  end_time: string | null;
+};
 
 export interface TimeSlot {
   time: string;
@@ -37,7 +43,7 @@ export interface SlotQueryOptions extends BookingRules {
   staffId?: string | null;
   now?: Date;
   serviceSlotStepMinutes?: number | null;
-  exceptions?: AvailabilityException[];
+  exceptions?: SlotAvailabilityException[];
   calendarBlocks?: CalendarBlock[];
 }
 
@@ -462,25 +468,35 @@ function getDayAvailabilitiesWithExceptions(
   dayOfWeek: number,
   selectedDate: Date,
   staffId?: string | null,
-  exceptions?: AvailabilityException[]
+  exceptions?: SlotAvailabilityException[]
 ): Availability[] {
+  const defaultWindows = getDayAvailabilities(availability, dayOfWeek, staffId);
+
   // Check if date has an exception that overrides normal availability
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
   const dayException = exceptions?.find(e => e.exception_date === dateStr);
 
   // If exception has custom hours, use only those
   if (dayException && !dayException.is_closed && dayException.start_time && dayException.end_time) {
+    const template = defaultWindows[0] ?? availability[0];
+    if (!template) {
+      return [];
+    }
+
     return [
       {
-        ...dayException,
+        ...template,
         day_of_week: dayOfWeek,
+        start_time: dayException.start_time,
+        end_time: dayException.end_time,
         is_active: true,
-      } as Availability,
+        staff_id: staffId ?? template.staff_id,
+      },
     ];
   }
 
   // Otherwise use normal day-of-week availability
-  return getDayAvailabilities(availability, dayOfWeek, staffId);
+  return defaultWindows;
 }
 
 function hasDateWindowAvailability(date: Date, options?: SlotQueryOptions): boolean {
