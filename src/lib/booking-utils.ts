@@ -236,36 +236,45 @@ type WindowSlotCandidate = {
 };
 
 /**
- * Detect the forced granularity offset within a time window.
- * Scans existing appointments to find if any 30-min appointment exists,
- * and returns its starting time and ending time.
- * 
- * Granularity enforcement only applies to slots that occur AFTER the appointment.
- * Slots before the first 30-min appointment are unrestricted.
- * 
- * If a 30-min appointment exists (e.g., 14:00-14:30),
- * all slots AFTER it must be at startTime + 30 + N*60 (14:30, 15:30, 16:30...)
- * to prevent dead gaps.
- * 
- * Returns { granularity: 30, offset: startMinutes, endMinutes: end } if 30-min appointment found, else null.
+ * Detect forced start-minute alignment for the entire availability block.
+ * If at least one 30-min appointment exists, all candidate slots in the block
+ * must align to a single minute phase within the hour (e.g. :30).
+ *
+ * The phase is chosen from existing 30-min appointments using the dominant
+ * appointment-end minute. This keeps the block coherent and avoids dead gaps.
  */
 function detectWindowGranularityAndOffset(
   appointmentsInWindow: Appointment[]
-): { granularity: number; offset: number; endMinutes: number } | null {
-  // Scan appointment durations and starting positions
-  for (const appointment of appointmentsInWindow) {
-    const aptDuration = getAppointmentEndMinutes(appointment) - toMinutes(appointment.start_time);
-    const aptStart = toMinutes(appointment.start_time);
-    const aptEnd = getAppointmentEndMinutes(appointment);
-    
-    // If any appointment is exactly 30 min, enforce slots at (aptStart + 30 + N*60) for times > aptEnd
-    if (aptDuration === 30) {
-      return { granularity: 30, offset: aptStart, endMinutes: aptEnd };
+): { granularity: number; offset: number } | null {
+  const thirtyMinuteAppointments = appointmentsInWindow
+    .map((appointment) => ({
+      startMinutes: toMinutes(appointment.start_time),
+      endMinutes: getAppointmentEndMinutes(appointment),
+      duration: getAppointmentEndMinutes(appointment) - toMinutes(appointment.start_time),
+    }))
+    .filter((appointment) => appointment.duration === 30)
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+
+  if (thirtyMinuteAppointments.length === 0) {
+    return null;
+  }
+
+  const phaseCounts = new Map<number, number>();
+  for (const appointment of thirtyMinuteAppointments) {
+    const phase = positiveModulo(appointment.endMinutes, 60);
+    phaseCounts.set(phase, (phaseCounts.get(phase) ?? 0) + 1);
+  }
+
+  let chosenPhase = positiveModulo(thirtyMinuteAppointments[0].endMinutes, 60);
+  let chosenCount = phaseCounts.get(chosenPhase) ?? 0;
+  for (const [phase, count] of phaseCounts.entries()) {
+    if (count > chosenCount) {
+      chosenPhase = phase;
+      chosenCount = count;
     }
   }
 
-  // No enforcement needed
-  return null;
+  return { granularity: 30, offset: chosenPhase };
 }
 
 function alignWindowCandidates(
@@ -606,18 +615,11 @@ export function generateTimeSlots(
       if (!seenTimes.has(timeString)) {
         const startMinutes = toMinutes(timeString);
         
-        // FILTER: If block has enforced granularity, slots that occur AFTER the 30-min appointment
-        // must avoid creating dead gaps.
-        // If appointment at 14:00-14:30 (offset=840, end=870), valid SUBSEQUENT slots are: 14:30, 15:30, 16:30...
-        // Pattern: For slots at time >= endMinutes, must have (slot - offset - 30) % 60 === 0
+        // FILTER: If block has enforced granularity, ALL slots in that block
+        // must align to a single minute phase (e.g. :30).
         let isValidForBlock = true;
         if (forcedPattern !== null) {
-          const { offset, endMinutes } = forcedPattern;
-          // Slots BEFORE appointment end are unrestricted
-          if (startMinutes >= endMinutes) {
-            // Slots AFTER appointment end must follow the pattern
-            isValidForBlock = ((startMinutes - offset - 30 + 1440) % 60) === 0;
-          }
+          isValidForBlock = positiveModulo(startMinutes - forcedPattern.offset, 60) === 0;
         }
         
         if (isValidForBlock) {

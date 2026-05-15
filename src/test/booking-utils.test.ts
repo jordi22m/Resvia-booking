@@ -257,7 +257,9 @@ describe('booking-utils', () => {
       }
     );
 
-    expect(slots.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:00']);
+    // With a 30-min appointment in the block, the whole block aligns to one phase (:30).
+    // For a 60-min service and conflict at 11:00-11:30, only 09:30 remains valid.
+    expect(slots.map((slot) => slot.time)).toEqual(['09:30']);
     expect(slots.map((slot) => slot.time)).not.toContain('10:30');
   });
 
@@ -358,11 +360,9 @@ describe('booking-utils', () => {
         defaultOpts
       );
 
-      // With 30min appointment at 10:00-10:30, slots must align to 30min pattern
-      // Before cita: 09:00, 09:30 (both OK, no conflict)
-      // After cita: must use offset pattern (10:00 + 30 + N*60): 10:30, 11:30
-      // NOT 11:00 which would create gap
-      expect(slots.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:30', '11:30']);
+      // With a 30-min appointment at 10:00-10:30, the WHOLE block aligns to :30.
+      // So 09:00 is no longer valid for this block pattern.
+      expect(slots.map((slot) => slot.time)).toEqual(['09:30', '10:30', '11:30']);
     });
 
     it('tarde con servicio de 60 min prioriza horas enteras cuando no hay patron de media hora', () => {
