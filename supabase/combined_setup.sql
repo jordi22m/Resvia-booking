@@ -234,6 +234,7 @@ CREATE TABLE IF NOT EXISTS public.services (
   description TEXT DEFAULT '',
   category TEXT DEFAULT 'General',
   bookable_online BOOLEAN DEFAULT true,
+  show_in_booking BOOLEAN DEFAULT true,
   requires_staff BOOLEAN DEFAULT true,
   buffer_before INTEGER DEFAULT 0,
   buffer_after INTEGER DEFAULT 0,
@@ -250,6 +251,7 @@ ALTER TABLE public.services ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General';
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS bookable_online BOOLEAN DEFAULT true;
+ALTER TABLE public.services ADD COLUMN IF NOT EXISTS show_in_booking BOOLEAN DEFAULT true;
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS requires_staff BOOLEAN DEFAULT true;
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS buffer_before INTEGER DEFAULT 0;
 ALTER TABLE public.services ADD COLUMN IF NOT EXISTS buffer_after INTEGER DEFAULT 0;

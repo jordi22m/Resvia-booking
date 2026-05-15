@@ -126,6 +126,7 @@ CREATE TABLE public.services (
   description TEXT DEFAULT '',
   category TEXT DEFAULT 'General',
   bookable_online BOOLEAN DEFAULT true,
+  show_in_booking BOOLEAN DEFAULT true,
   requires_staff BOOLEAN DEFAULT true,
   buffer_before INTEGER DEFAULT 0,
   buffer_after INTEGER DEFAULT 0,

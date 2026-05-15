@@ -1,6 +1,6 @@
 import { addDays } from 'date-fns';
 import { describe, expect, it } from 'vitest';
-import { generateTimeSlots, getBestAvailableSlots, getDayAvailabilitySummary, isTimeSlotAvailable } from '@/lib/booking-utils';
+import { generateTimeSlots, getBestAvailableSlots, getDayAvailabilitySummary, getRankedAvailableSlots, isTimeSlotAvailable } from '@/lib/booking-utils';
 import type { Availability } from '@/hooks/use-availability';
 import type { Appointment } from '@/hooks/use-appointments';
 
@@ -224,9 +224,8 @@ describe('booking-utils', () => {
       }
     );
 
-    expect(slots.map((slot) => slot.time)).toEqual(['10:00', '11:00', '12:00']);
-    expect(slots.map((slot) => slot.time)).not.toContain('09:30');
-    expect(slots.map((slot) => slot.time)).not.toContain('10:30');
+    expect(slots.map((slot) => slot.time)).toEqual(['09:30', '10:30', '11:30', '12:30']);
+    expect(slots.map((slot) => slot.time)).not.toContain('10:00');
   });
 
   it('exige que la duracion completa del servicio quepa libre antes de ofrecer un hueco', () => {
@@ -318,6 +317,276 @@ describe('booking-utils', () => {
       );
 
       expect(summaryWithCanceled.availableSlots).toBe(summaryWithNoAppointments.availableSlots);
+    });
+  });
+
+  describe('alineacion adaptativa por bloques', () => {
+    const mondayDate = new Date(2026, 3, 20, 9, 0, 0);
+    const defaultOpts = {
+      now: new Date(2026, 3, 19, 10, 0, 0),
+      slotMinutes: 30,
+    };
+
+    it('manana con citas de 30 min mantiene horarios de media hora para servicio corto', () => {
+      const splitMorning: Availability = {
+        ...baseAvailability,
+        id: 'availability-morning-30',
+        start_time: '09:00',
+        end_time: '12:00',
+      };
+
+      const appointments: Appointment[] = [
+        {
+          ...baseAppointment,
+          id: 'appointment-morning-1',
+          start_time: '10:00',
+          end_time: '10:30',
+        },
+      ];
+
+      const slots = generateTimeSlots(
+        [splitMorning],
+        appointments,
+        mondayDate,
+        30,
+        defaultOpts
+      );
+
+      expect(slots.map((slot) => slot.time)).toEqual(['09:00', '09:30', '10:30', '11:00', '11:30']);
+    });
+
+    it('tarde con servicio de 60 min prioriza horas enteras cuando no hay patron de media hora', () => {
+      const afternoonOnly: Availability = {
+        ...baseAvailability,
+        id: 'availability-afternoon-hourly',
+        start_time: '15:00',
+        end_time: '19:00',
+      };
+
+      const slots = generateTimeSlots(
+        [afternoonOnly],
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      expect(slots.map((slot) => slot.time)).toEqual(['15:00', '16:00', '17:00', '18:00']);
+      expect(slots.map((slot) => slot.time)).not.toContain('15:30');
+    });
+
+    it('mezcla manana y tarde con alineacion distinta por bloque', () => {
+      const morningHalfAligned: Availability = {
+        ...baseAvailability,
+        id: 'availability-morning-half',
+        start_time: '09:30',
+        end_time: '12:30',
+      };
+      const afternoonHourly: Availability = {
+        ...baseAvailability,
+        id: 'availability-afternoon-hourly-2',
+        start_time: '15:00',
+        end_time: '18:00',
+      };
+
+      const slots = generateTimeSlots(
+        [morningHalfAligned, afternoonHourly],
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      expect(slots.map((slot) => slot.time)).toEqual(['09:30', '10:30', '11:30', '15:00', '16:00', '17:00']);
+    });
+
+    it('respeta pausa de mediodia y no mezcla bloques como ventana continua', () => {
+      const morning: Availability = {
+        ...baseAvailability,
+        id: 'availability-morning-break',
+        start_time: '09:00',
+        end_time: '12:00',
+      };
+      const afternoon: Availability = {
+        ...baseAvailability,
+        id: 'availability-afternoon-break',
+        start_time: '15:00',
+        end_time: '18:00',
+      };
+
+      const slots = generateTimeSlots(
+        [morning, afternoon],
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      const slotTimes = slots.map((slot) => slot.time);
+      expect(slotTimes).toEqual(['09:00', '10:00', '11:00', '15:00', '16:00', '17:00']);
+      expect(slotTimes).not.toContain('12:00');
+      expect(slotTimes).not.toContain('12:30');
+      expect(new Set(slotTimes).size).toBe(slotTimes.length);
+    });
+
+    it('adapta resultados al cambiar de staff', () => {
+      const staffA = 'staff-a';
+      const staffB = 'staff-b';
+
+      const availabilityByStaff: Availability[] = [
+        {
+          ...baseAvailability,
+          id: 'availability-staff-a',
+          staff_id: staffA,
+          start_time: '09:30',
+          end_time: '13:30',
+        },
+        {
+          ...baseAvailability,
+          id: 'availability-staff-b',
+          staff_id: staffB,
+          start_time: '09:00',
+          end_time: '13:00',
+        },
+      ];
+
+      const staffASlots = generateTimeSlots(
+        availabilityByStaff,
+        [],
+        mondayDate,
+        60,
+        {
+          ...defaultOpts,
+          staffId: staffA,
+        }
+      );
+
+      const staffBSlots = generateTimeSlots(
+        availabilityByStaff,
+        [],
+        mondayDate,
+        60,
+        {
+          ...defaultOpts,
+          staffId: staffB,
+        }
+      );
+
+      expect(staffASlots.map((slot) => slot.time)).toEqual(['09:30', '10:30', '11:30', '12:30']);
+      expect(staffBSlots.map((slot) => slot.time)).toEqual(['09:00', '10:00', '11:00', '12:00']);
+    });
+
+    it('adapta resultados al cambiar de servicio en el mismo bloque', () => {
+      const shiftedBlock: Availability = {
+        ...baseAvailability,
+        id: 'availability-service-switch',
+        start_time: '09:30',
+        end_time: '13:30',
+      };
+
+      const slots30 = generateTimeSlots(
+        [shiftedBlock],
+        [],
+        mondayDate,
+        30,
+        defaultOpts
+      );
+
+      const slots60 = generateTimeSlots(
+        [shiftedBlock],
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      expect(slots30.map((slot) => slot.time)).toEqual(['09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00']);
+      expect(slots60.map((slot) => slot.time)).toEqual(['09:30', '10:30', '11:30', '12:30']);
+    });
+
+    it('mantiene recomendaciones en slots alineados sin introducir horas fuera de lista', () => {
+      const mixedBlocks: Availability[] = [
+        {
+          ...baseAvailability,
+          id: 'availability-reco-morning',
+          start_time: '09:30',
+          end_time: '12:30',
+        },
+        {
+          ...baseAvailability,
+          id: 'availability-reco-afternoon',
+          start_time: '15:00',
+          end_time: '18:00',
+        },
+      ];
+
+      const allSlots = generateTimeSlots(
+        mixedBlocks,
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      ).map((slot) => slot.time);
+
+      const bestSlots = getBestAvailableSlots(
+        mixedBlocks,
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      const ranked = getRankedAvailableSlots(
+        mixedBlocks,
+        [],
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      expect(bestSlots.length).toBeGreaterThan(0);
+      expect(ranked.length).toBeGreaterThan(0);
+      expect(bestSlots.every((slot) => allSlots.includes(slot))).toBe(true);
+      expect(ranked.every((slot) => allSlots.includes(slot.time))).toBe(true);
+      expect(new Set(allSlots).size).toBe(allSlots.length);
+    });
+
+    it('prioriza automaticamente la opcion que deja menos hueco muerto (10:00 y 12:00)', () => {
+      const efficientWindow: Availability = {
+        ...baseAvailability,
+        id: 'availability-efficiency-priority',
+        start_time: '10:30',
+        end_time: '12:00',
+      };
+
+      const appointments: Appointment[] = [
+        {
+          ...baseAppointment,
+          id: 'appointment-ten',
+          start_time: '10:00',
+          end_time: '10:30',
+        },
+        {
+          ...baseAppointment,
+          id: 'appointment-twelve',
+          start_time: '12:00',
+          end_time: '12:30',
+        },
+      ];
+
+      const ranked = getRankedAvailableSlots(
+        [efficientWindow],
+        appointments,
+        mondayDate,
+        60,
+        defaultOpts
+      );
+
+      const rankedTimes = ranked.map((slot) => slot.time);
+      expect(rankedTimes[0]).toBe('11:00');
+      if (rankedTimes.includes('10:30')) {
+        expect(rankedTimes.indexOf('11:00')).toBeLessThan(rankedTimes.indexOf('10:30'));
+      }
     });
   });
 });

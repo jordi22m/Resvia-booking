@@ -20,6 +20,7 @@ interface SlotFitMetrics {
   totalGap: number;
   largestGap: number;
   gapCount: number;
+  deadGapCount: number;
 }
 
 export interface BookingRules {
@@ -80,6 +81,32 @@ function normalizeServiceSlotStepMinutes(options: SlotQueryOptions | undefined, 
   }
 
   return normalizedStep;
+}
+
+function positiveModulo(value: number, mod: number): number {
+  if (mod <= 0) return 0;
+  return ((value % mod) + mod) % mod;
+}
+
+function resolveAdaptiveStepMinutes(
+  options: SlotQueryOptions | undefined,
+  globalSlotInterval: number,
+  serviceDuration: number
+): number {
+  const explicitStep = normalizeServiceSlotStepMinutes(options, globalSlotInterval);
+  if (explicitStep) {
+    return explicitStep;
+  }
+
+  // For longer services, default to service-duration cadence when it fits the base grid.
+  if (
+    serviceDuration > globalSlotInterval &&
+    serviceDuration % globalSlotInterval === 0
+  ) {
+    return serviceDuration;
+  }
+
+  return globalSlotInterval;
 }
 
 function isSameStaff(staffA: string | null | undefined, staffB: string | null | undefined): boolean {
@@ -176,6 +203,104 @@ function getDayAppointments(
   });
 }
 
+function getAppointmentsInsideWindow(
+  appointments: Appointment[],
+  window: Availability
+): Appointment[] {
+  const windowStart = toMinutes(window.start_time);
+  const windowEnd = toMinutes(window.end_time);
+
+  return appointments.filter((appointment) => {
+    const aptStart = toMinutes(appointment.start_time);
+    const aptEnd = getAppointmentEndMinutes(appointment);
+    return aptEnd >= windowStart && aptStart <= windowEnd;
+  });
+}
+
+function getAdaptiveOffsetCandidates(stepMinutes: number, baseSlotMinutes: number): number[] {
+  if (stepMinutes <= 0 || baseSlotMinutes <= 0) {
+    return [0];
+  }
+
+  const candidates: number[] = [];
+  for (let offset = 0; offset < stepMinutes; offset += baseSlotMinutes) {
+    candidates.push(offset);
+  }
+
+  return candidates.length ? candidates : [0];
+}
+
+type WindowSlotCandidate = {
+  time: string;
+  startMinutes: number;
+};
+
+function alignWindowCandidates(
+  window: Availability,
+  candidates: WindowSlotCandidate[],
+  appointmentsInWindow: Appointment[],
+  stepMinutes: number,
+  baseSlotMinutes: number,
+  serviceDuration: number
+): WindowSlotCandidate[] {
+  if (candidates.length <= 1 || stepMinutes <= baseSlotMinutes || stepMinutes % baseSlotMinutes !== 0) {
+    return candidates;
+  }
+
+  const offsets = getAdaptiveOffsetCandidates(stepMinutes, baseSlotMinutes);
+  const windowStart = toMinutes(window.start_time);
+  const windowEnd = toMinutes(window.end_time);
+
+  const appointmentOffsets = appointmentsInWindow
+    .map((appointment) => positiveModulo(toMinutes(appointment.start_time), stepMinutes));
+
+  let bestOffset = offsets[0];
+  let bestScore: [number, number, number, number] | null = null;
+
+  for (const offset of offsets) {
+    const alignedSlots = candidates.filter(
+      (candidate) => positiveModulo(candidate.startMinutes, stepMinutes) === offset
+    );
+
+    if (alignedSlots.length === 0) {
+      continue;
+    }
+
+    const firstStart = alignedSlots[0].startMinutes;
+    const lastStart = alignedSlots[alignedSlots.length - 1].startMinutes;
+    const leftWaste = Math.max(0, firstStart - windowStart);
+    const rightWaste = Math.max(0, windowEnd - (lastStart + serviceDuration));
+    const edgeWaste = leftWaste + rightWaste;
+
+    const mismatchAppointments = appointmentOffsets.filter((value) => value !== offset).length;
+    const score: [number, number, number, number] = [
+      -alignedSlots.length,
+      mismatchAppointments,
+      edgeWaste,
+      offset,
+    ];
+
+    if (
+      !bestScore ||
+      score[0] < bestScore[0] ||
+      (score[0] === bestScore[0] && score[1] < bestScore[1]) ||
+      (score[0] === bestScore[0] && score[1] === bestScore[1] && score[2] < bestScore[2]) ||
+      (score[0] === bestScore[0] && score[1] === bestScore[1] && score[2] === bestScore[2] && score[3] < bestScore[3])
+    ) {
+      bestOffset = offset;
+      bestScore = score;
+    }
+  }
+
+  if (!bestScore) {
+    return candidates;
+  }
+
+  return candidates.filter(
+    (candidate) => positiveModulo(candidate.startMinutes, stepMinutes) === bestOffset
+  );
+}
+
 function getContainingWindow(
   dayAvailabilities: Availability[],
   startMinutes: number,
@@ -241,7 +366,8 @@ function getSlotFitMetrics(
   dayAvailabilities: Availability[],
   appointments: Appointment[],
   startMinutes: number,
-  endMinutes: number
+  endMinutes: number,
+  minUsefulGapMinutes: number
 ): SlotFitMetrics {
   const containingWindow = getContainingWindow(dayAvailabilities, startMinutes, endMinutes);
   if (!containingWindow) {
@@ -249,6 +375,7 @@ function getSlotFitMetrics(
       totalGap: Number.POSITIVE_INFINITY,
       largestGap: Number.POSITIVE_INFINITY,
       gapCount: Number.POSITIVE_INFINITY,
+      deadGapCount: Number.POSITIVE_INFINITY,
     };
   }
 
@@ -260,7 +387,7 @@ function getSlotFitMetrics(
       start: toMinutes(appointment.start_time),
       end: getAppointmentEndMinutes(appointment),
     }))
-    .filter((appointment) => appointment.end > windowStart && appointment.start < windowEnd)
+    .filter((appointment) => appointment.end >= windowStart && appointment.start <= windowEnd)
     .sort((a, b) => a.start - b.start);
 
   const previousAppointment = [...sortedAppointments]
@@ -273,11 +400,14 @@ function getSlotFitMetrics(
   const leftGap = Math.max(0, startMinutes - leftBoundary);
   const rightGap = Math.max(0, rightBoundary - endMinutes);
   const gaps = [leftGap, rightGap].filter((gap) => gap > 0);
+  const deadGapThreshold = Math.max(1, minUsefulGapMinutes);
+  const deadGapCount = gaps.filter((gap) => gap < deadGapThreshold).length;
 
   return {
     totalGap: gaps.reduce((sum, gap) => sum + gap, 0),
     largestGap: gaps.length ? Math.max(...gaps) : 0,
     gapCount: gaps.length,
+    deadGapCount,
   };
 }
 
@@ -406,7 +536,7 @@ export function generateTimeSlots(
 
   const rules = normalizeRules(options);
   const globalSlotInterval = rules.slotMinutes;
-  const serviceSlotStepMinutes = normalizeServiceSlotStepMinutes(options, globalSlotInterval);
+  const adaptiveStepMinutes = resolveAdaptiveStepMinutes(options, globalSlotInterval, serviceDuration);
   const dayOfWeek = getDay(selectedDate);
   const dayAvailabilities = getDayAvailabilitiesWithExceptions(
     availability,
@@ -419,6 +549,8 @@ export function generateTimeSlots(
     return [];
   }
 
+  const dayAppointments = getDayAppointments(appointments, selectedDate, options?.staffId);
+
   const slots: TimeSlot[] = [];
   const seenTimes = new Set<string>();
 
@@ -429,6 +561,7 @@ export function generateTimeSlots(
     // Restamos la duración del servicio para que el bucle no genere slots inválidos.
     const latestStart = new Date(end.getTime() - serviceDuration * 60_000);
     let currentTime = new Date(start);
+    const windowCandidates: WindowSlotCandidate[] = [];
 
     while (currentTime <= latestStart) {
       const timeString = format(currentTime, 'HH:mm');
@@ -442,18 +575,32 @@ export function generateTimeSlots(
           options
         );
 
-          const startMinutes = toMinutes(timeString);
-          const respectsServiceStep = !serviceSlotStepMinutes || startMinutes % serviceSlotStepMinutes === 0;
-
-          if (available && respectsServiceStep) {
-          slots.push({
+        if (available) {
+          windowCandidates.push({
             time: timeString,
-            available: true,
+            startMinutes: toMinutes(timeString),
           });
         }
         seenTimes.add(timeString);
       }
-        currentTime = addMinutes(currentTime, globalSlotInterval);
+      currentTime = addMinutes(currentTime, globalSlotInterval);
+    }
+
+    const appointmentsInWindow = getAppointmentsInsideWindow(dayAppointments, window);
+    const alignedCandidates = alignWindowCandidates(
+      window,
+      windowCandidates,
+      appointmentsInWindow,
+      adaptiveStepMinutes,
+      globalSlotInterval,
+      serviceDuration
+    );
+
+    for (const candidate of alignedCandidates) {
+      slots.push({
+        time: candidate.time,
+        available: true,
+      });
     }
   }
 
@@ -480,7 +627,13 @@ export function getRankedAvailableSlots(
   options?: SlotQueryOptions
 ): Array<{ time: string; startMinutes: number; totalGap: number; largestGap: number; gapCount: number }> {
   const dayOfWeek = getDay(date);
-  const dayAvailabilities = getDayAvailabilities(availability, dayOfWeek, options?.staffId);
+  const dayAvailabilities = getDayAvailabilitiesWithExceptions(
+    availability,
+    dayOfWeek,
+    date,
+    options?.staffId,
+    options?.exceptions
+  );
   const dayAppointments = getDayAppointments(appointments, date, options?.staffId);
   const baseSlotInterval = Math.max(5, options?.slotMinutes ?? DEFAULT_RULES.slotMinutes);
 
@@ -488,7 +641,13 @@ export function getRankedAvailableSlots(
     .map((slot) => {
       const startMinutes = toMinutes(slot.time);
       const endMinutes = startMinutes + serviceDuration;
-      const metrics = getSlotFitMetrics(dayAvailabilities, dayAppointments, startMinutes, endMinutes);
+      const metrics = getSlotFitMetrics(
+        dayAvailabilities,
+        dayAppointments,
+        startMinutes,
+        endMinutes,
+        serviceDuration
+      );
       const slotWaste = metrics.totalGap % baseSlotInterval;
 
       return {
@@ -499,6 +658,9 @@ export function getRankedAvailableSlots(
       };
     })
     .sort((a, b) => {
+      if (a.deadGapCount !== b.deadGapCount) {
+        return a.deadGapCount - b.deadGapCount;
+      }
       if (a.totalGap !== b.totalGap) {
         return a.totalGap - b.totalGap;
       }
@@ -513,7 +675,7 @@ export function getRankedAvailableSlots(
       }
       return a.startMinutes - b.startMinutes;
     })
-    .map(({ slotWaste: _slotWaste, ...slot }) => slot);
+    .map(({ slotWaste: _slotWaste, deadGapCount: _deadGapCount, ...slot }) => slot);
 }
 
 export function getAvailableDays(

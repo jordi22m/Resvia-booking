@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useServices, useCreateService, useUpdateService, useDeleteService, type Service } from '@/hooks/use-services';
@@ -14,7 +15,20 @@ import { useToast } from '@/hooks/use-toast';
 
 type ScheduleMode = 'flexible' | 'strict';
 
-const defaultService = { name: '', duration: 30, slot_step_minutes: null as number | null, price: 0, description: '', category: 'General', color: '#94a3b8', bookable_online: true, requires_staff: true, buffer_before: 0, buffer_after: 0 };
+const defaultService = {
+  name: '',
+  duration: 30,
+  slot_step_minutes: null as number | null,
+  price: 0,
+  description: '',
+  category: 'General',
+  color: '#94a3b8',
+  bookable_online: true,
+  show_in_booking: true,
+  requires_staff: true,
+  buffer_before: 0,
+  buffer_after: 0,
+};
 
 const scheduleModeOptions: Array<{ label: string; value: ScheduleMode; description: string }> = [
   { label: 'Flexible', value: 'flexible', description: 'Rellena huecos siguiendo la rejilla global del negocio.' },
@@ -51,7 +65,20 @@ export default function ServicesPage() {
   const openCreate = () => { setEditing(null); setForm(defaultService); setDialogOpen(true); };
   const openEdit = (s: Service) => {
     setEditing(s);
-    setForm({ name: s.name, duration: s.duration, slot_step_minutes: s.slot_step_minutes ?? null, price: Number(s.price), description: s.description || '', category: s.category || 'General', color: s.color || '#94a3b8', bookable_online: s.bookable_online ?? true, requires_staff: s.requires_staff ?? true, buffer_before: s.buffer_before || 0, buffer_after: s.buffer_after || 0 });
+    setForm({
+      name: s.name,
+      duration: s.duration,
+      slot_step_minutes: s.slot_step_minutes ?? null,
+      price: Number(s.price),
+      description: s.description || '',
+      category: s.category || 'General',
+      color: s.color || '#94a3b8',
+      bookable_online: s.bookable_online ?? true,
+      show_in_booking: s.show_in_booking ?? true,
+      requires_staff: s.requires_staff ?? true,
+      buffer_before: s.buffer_before || 0,
+      buffer_after: s.buffer_after || 0,
+    });
     setDialogOpen(true);
   };
 
@@ -137,6 +164,9 @@ export default function ServicesPage() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-foreground">{service.name}</p>
                       {service.bookable_online && <Badge variant="secondary" className="text-[10px]">Online</Badge>}
+                      {(service.show_in_booking ?? true) === false && (
+                        <Badge variant="outline" className="text-[10px]">Oculto en booking</Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">{service.description}</p>
                   </div>
@@ -227,6 +257,21 @@ export default function ServicesPage() {
             <div className="space-y-2">
               <Label>Color</Label>
               <Input type="color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} className="h-10 w-20" />
+            </div>
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label htmlFor="show-in-booking">Mostrar a clientes en booking online</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Si lo desactivas, este servicio sigue funcionando en agenda interna y citas manuales.
+                  </p>
+                </div>
+                <Switch
+                  id="show-in-booking"
+                  checked={form.show_in_booking}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, show_in_booking: checked }))}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter className="border-t bg-background px-6 py-4">

@@ -39,7 +39,7 @@ export default function BookingDebugPage() {
       try {
         const { data, error, count } = await supabase
           .from('services')
-          .select('id, user_id, active, bookable_online', { count: 'exact' });
+          .select('id, user_id, active, bookable_online, show_in_booking', { count: 'exact' });
 
         if (error) {
           newResults.servicesAccess = `❌ Error: ${error.message}`;

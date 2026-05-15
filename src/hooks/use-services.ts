@@ -8,6 +8,7 @@ type RawService = Tables<'services'> & {
   duration_minutes?: number | null;
   slot_step_minutes?: number | null;
   interval_minutes?: number | null;
+  show_in_booking?: boolean | null;
 };
 
 type RawServiceInsert = TablesInsert<'services'> & {
@@ -15,6 +16,7 @@ type RawServiceInsert = TablesInsert<'services'> & {
   duration_minutes?: number | null;
   slot_step_minutes?: number | null;
   interval_minutes?: number | null;
+  show_in_booking?: boolean | null;
 };
 
 type RawServiceUpdate = TablesUpdate<'services'> & {
@@ -22,11 +24,22 @@ type RawServiceUpdate = TablesUpdate<'services'> & {
   duration_minutes?: number | null;
   slot_step_minutes?: number | null;
   interval_minutes?: number | null;
+  show_in_booking?: boolean | null;
 };
 
 export type Service = Omit<RawService, 'duration'> & {
   duration: number;
 };
+
+export function isServicePubliclyVisible(
+  service: Pick<RawService, 'active' | 'bookable_online' | 'show_in_booking'>
+): boolean {
+  return (
+    (service.active ?? true) === true &&
+    (service.bookable_online ?? true) === true &&
+    (service.show_in_booking ?? true) === true
+  );
+}
 
 function normalizeService(service: RawService): Service {
   return {
@@ -34,6 +47,16 @@ function normalizeService(service: RawService): Service {
     slot_step_minutes: service.slot_step_minutes ?? service.interval_minutes ?? null,
     duration: service.duration ?? service.duration_minutes ?? 30,
   };
+}
+
+export function toInternalServices(services: RawService[]): Service[] {
+  return services.map(normalizeService);
+}
+
+export function toPublicBookingServices(services: RawService[]): Service[] {
+  return services
+    .filter((service) => isServicePubliclyVisible(service))
+    .map(normalizeService);
 }
 
 function toServicePayload(service: RawServiceInsert | RawServiceUpdate) {
@@ -63,7 +86,7 @@ export function useServices() {
         .order('category')
         .order('name');
       if (error) throw error;
-      return (data as RawService[]).map(normalizeService);
+      return toInternalServices(data as RawService[]);
     },
     enabled: !!user,
   });
@@ -79,10 +102,11 @@ export function useServicesByUserId(userId: string | undefined) {
         .eq('user_id', userId!)
         .eq('active', true)
         .eq('bookable_online', true)
+        .eq('show_in_booking', true)
         .order('category')
         .order('name');
       if (error) throw error;
-      return (data as RawService[]).map(normalizeService);
+      return toPublicBookingServices(data as RawService[]);
     },
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
