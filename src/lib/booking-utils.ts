@@ -235,6 +235,39 @@ type WindowSlotCandidate = {
   startMinutes: number;
 };
 
+/**
+ * Detect the forced granularity offset within a time window.
+ * Scans existing appointments to find if any 30-min appointment exists,
+ * and returns its starting time and ending time.
+ * 
+ * Granularity enforcement only applies to slots that occur AFTER the appointment.
+ * Slots before the first 30-min appointment are unrestricted.
+ * 
+ * If a 30-min appointment exists (e.g., 14:00-14:30),
+ * all slots AFTER it must be at startTime + 30 + N*60 (14:30, 15:30, 16:30...)
+ * to prevent dead gaps.
+ * 
+ * Returns { granularity: 30, offset: startMinutes, endMinutes: end } if 30-min appointment found, else null.
+ */
+function detectWindowGranularityAndOffset(
+  appointmentsInWindow: Appointment[]
+): { granularity: number; offset: number; endMinutes: number } | null {
+  // Scan appointment durations and starting positions
+  for (const appointment of appointmentsInWindow) {
+    const aptDuration = getAppointmentEndMinutes(appointment) - toMinutes(appointment.start_time);
+    const aptStart = toMinutes(appointment.start_time);
+    const aptEnd = getAppointmentEndMinutes(appointment);
+    
+    // If any appointment is exactly 30 min, enforce slots at (aptStart + 30 + N*60) for times > aptEnd
+    if (aptDuration === 30) {
+      return { granularity: 30, offset: aptStart, endMinutes: aptEnd };
+    }
+  }
+
+  // No enforcement needed
+  return null;
+}
+
 function alignWindowCandidates(
   window: Availability,
   candidates: WindowSlotCandidate[],
@@ -555,46 +588,78 @@ export function generateTimeSlots(
   const seenTimes = new Set<string>();
 
   for (const window of dayAvailabilities) {
+    // CRITICAL: Detect if this block has enforced granularity with specific offset
+    // E.g., if cita 14:00-14:30 exists, offset = 0; all slots must be at 14:00, 14:30, 15:30, etc.
+    // (NOT 15:00 because it would create dead gap 14:30-15:00)
+    const appointmentsInWindow = getAppointmentsInsideWindow(dayAppointments, window);
+    const forcedPattern = detectWindowGranularityAndOffset(appointmentsInWindow);
+
     const start = new Date(`1970-01-01T${window.start_time}`);
     const end = new Date(`1970-01-01T${window.end_time}`);
-    // El slot solo es válido si el servicio completo cabe dentro de la ventana.
-    // Restamos la duración del servicio para que el bucle no genere slots inválidos.
     const latestStart = new Date(end.getTime() - serviceDuration * 60_000);
     let currentTime = new Date(start);
     const windowCandidates: WindowSlotCandidate[] = [];
 
+    // Generate candidates using global interval, filtering by forced pattern if present
     while (currentTime <= latestStart) {
       const timeString = format(currentTime, 'HH:mm');
       if (!seenTimes.has(timeString)) {
-        const available = isTimeSlotAvailable(
-          dayAvailabilities,
-          appointments,
-          selectedDate,
-          timeString,
-          serviceDuration,
-          options
-        );
+        const startMinutes = toMinutes(timeString);
+        
+        // FILTER: If block has enforced granularity, slots that occur AFTER the 30-min appointment
+        // must avoid creating dead gaps.
+        // If appointment at 14:00-14:30 (offset=840, end=870), valid SUBSEQUENT slots are: 14:30, 15:30, 16:30...
+        // Pattern: For slots at time >= endMinutes, must have (slot - offset - 30) % 60 === 0
+        let isValidForBlock = true;
+        if (forcedPattern !== null) {
+          const { offset, endMinutes } = forcedPattern;
+          // Slots BEFORE appointment end are unrestricted
+          if (startMinutes >= endMinutes) {
+            // Slots AFTER appointment end must follow the pattern
+            isValidForBlock = ((startMinutes - offset - 30 + 1440) % 60) === 0;
+          }
+        }
+        
+        if (isValidForBlock) {
+          const available = isTimeSlotAvailable(
+            dayAvailabilities,
+            appointments,
+            selectedDate,
+            timeString,
+            serviceDuration,
+            options
+          );
 
-        if (available) {
-          windowCandidates.push({
-            time: timeString,
-            startMinutes: toMinutes(timeString),
-          });
+          if (available) {
+            windowCandidates.push({
+              time: timeString,
+              startMinutes,
+            });
+          }
         }
         seenTimes.add(timeString);
       }
       currentTime = addMinutes(currentTime, globalSlotInterval);
     }
 
-    const appointmentsInWindow = getAppointmentsInsideWindow(dayAppointments, window);
-    const alignedCandidates = alignWindowCandidates(
-      window,
-      windowCandidates,
-      appointmentsInWindow,
-      adaptiveStepMinutes,
-      globalSlotInterval,
-      serviceDuration
-    );
+    // If no candidates after granularity filtering, skip this window
+    if (windowCandidates.length === 0) {
+      continue;
+    }
+
+    // Apply adaptive alignment ONLY if no forced pattern
+    // If forced pattern is active, candidates are already filtered correctly
+    let alignedCandidates = windowCandidates;
+    if (forcedPattern === null) {
+      alignedCandidates = alignWindowCandidates(
+        window,
+        windowCandidates,
+        appointmentsInWindow,
+        adaptiveStepMinutes,
+        globalSlotInterval,
+        serviceDuration
+      );
+    }
 
     for (const candidate of alignedCandidates) {
       slots.push({
