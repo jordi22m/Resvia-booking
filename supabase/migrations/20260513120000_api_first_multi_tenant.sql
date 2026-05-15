@@ -85,7 +85,7 @@ RETURNS text
 LANGUAGE sql
 VOLATILE
 AS $$
-  SELECT 'rv_live_' || lower(encode(gen_random_bytes(24), 'hex'))
+  SELECT 'rv_live_' || lower(encode(extensions.gen_random_bytes(24), 'hex'))
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_workspace_api_key_info()

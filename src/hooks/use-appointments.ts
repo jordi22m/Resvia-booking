@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tables, TablesInsert, TablesUpdate } from '@/integrations/supabase/types';
 import { useEffect, useRef } from 'react';
-import { buildWebhookPayload, triggerWebhook } from '@/lib/webhook';
+
 import { format } from 'date-fns';
 
 export type Appointment = Tables<'appointments'>;
@@ -176,7 +176,7 @@ export function useAppointmentsBySlugAndDateRange(slug: string | undefined, star
 }
 
 export function useCreateAppointment() {
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (apt: Omit<TablesInsert<'appointments'>, 'user_id'>) => {
@@ -186,6 +186,17 @@ export function useCreateAppointment() {
         .select()
         .single();
       if (error) throw error;
+
+      // Las altas desde panel se crean como pending. Confirmamos enseguida
+      // para disparar booking.confirmed en backend y mantener el flujo consistente.
+      if (data.status === 'pending') {
+        const { error: confirmError } = await supabase
+          .from('appointments')
+          .update({ status: 'confirmed' })
+          .eq('id', data.id);
+
+        if (confirmError) throw confirmError;
+      }
 
       // Disparo push (no bloqueante)
       supabase.functions.invoke('send-push', {
@@ -197,30 +208,6 @@ export function useCreateAppointment() {
         },
       }).catch(() => {});
 
-      // Disparo webhook (no bloqueante)
-      if (session) {
-        const createdAppointment = data as Appointment & { public_id?: string | null };
-        triggerWebhook(
-          'booking.created',
-          buildWebhookPayload({
-            event: 'booking.created',
-            business: { id: user!.id, name: 'Business', slug: null },
-            appointment: {
-              id: data.id,
-              public_id: createdAppointment.public_id ?? null,
-              status: apt.status || 'pending',
-              date: apt.date,
-              start_time: apt.start_time,
-              end_time: apt.end_time,
-            },
-            customer: { id: apt.customer_id ?? null },
-            service: { id: apt.service_id ?? null },
-          }),
-          user!.id,
-          session
-        );
-      }
-
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['appointments'] }),
@@ -228,19 +215,10 @@ export function useCreateAppointment() {
 }
 
 export function useUpdateAppointment() {
-  const { user, session } = useAuth();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: TablesUpdate<'appointments'> & { id: string }) => {
-      const { data: previousAppointment, error: previousError } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (previousError) throw previousError;
-
       const { data, error } = await supabase
         .from('appointments')
         .update(updates)
@@ -249,48 +227,6 @@ export function useUpdateAppointment() {
         .single();
 
       if (error) throw error;
-
-      const nextAppointment = data as Appointment & { public_id?: string | null };
-      const prevAppointment = previousAppointment as Appointment | null;
-
-      const isRescheduled = Boolean(
-        prevAppointment && (
-          (updates.date !== undefined && updates.date !== prevAppointment.date) ||
-          (updates.start_time !== undefined && updates.start_time !== prevAppointment.start_time) ||
-          (updates.end_time !== undefined && updates.end_time !== prevAppointment.end_time)
-        ),
-      );
-
-      if (isRescheduled && user?.id && session) {
-        const payload = {
-          ...buildWebhookPayload({
-            event: 'booking.rescheduled',
-            business: { id: user.id, name: 'Business', slug: null },
-            appointment: {
-              id: nextAppointment.id,
-              public_id: nextAppointment.public_id ?? null,
-              status: nextAppointment.status,
-              date: nextAppointment.date,
-              start_time: nextAppointment.start_time,
-              end_time: nextAppointment.end_time,
-            },
-            customer: { id: nextAppointment.customer_id ?? null },
-            service: { id: nextAppointment.service_id ?? null },
-          }),
-          previous_datetime: {
-            date: prevAppointment?.date ?? null,
-            start_time: prevAppointment?.start_time ?? null,
-            end_time: prevAppointment?.end_time ?? null,
-          },
-          updated_datetime: {
-            date: nextAppointment.date,
-            start_time: nextAppointment.start_time,
-            end_time: nextAppointment.end_time,
-          },
-        };
-
-        void triggerWebhook('booking.rescheduled', payload, user.id, session);
-      }
 
       return data;
     },

@@ -21,6 +21,10 @@ function buildError(message: string, workspaceId: string, status = 400) {
   return withWorkspaceHeaders(jsonResponse({ error: message }, status), workspaceId);
 }
 
+function getStringParam(value: unknown) {
+  return normalizeText(value);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -52,19 +56,54 @@ Deno.serve(async (req) => {
     }
 
     if (parts.length === 3 && parts[2] === 'availability') {
-      if (req.method !== 'GET') return methodNotAllowed();
+      if (req.method !== 'GET' && req.method !== 'POST') return methodNotAllowed();
 
-      const from = normalizeText(url.searchParams.get('from'));
-      const to = normalizeText(url.searchParams.get('to'));
+      const body = req.method === 'POST' ? await parseJsonBody(req) : {};
+      const from = getStringParam(
+        body.fecha_desde ?? body.from ?? body.fecha ?? url.searchParams.get('fecha_desde') ?? url.searchParams.get('from') ?? url.searchParams.get('fecha')
+      );
+      const to = getStringParam(
+        body.fecha_hasta ?? body.to ?? body.fecha ?? url.searchParams.get('fecha_hasta') ?? url.searchParams.get('to') ?? url.searchParams.get('fecha')
+      );
+      const serviceId = normalizeUuid(
+        body.service_id ?? body.serviceId ?? url.searchParams.get('service_id') ?? url.searchParams.get('serviceId')
+      );
+      const serviceName = getStringParam(
+        body.servicio ?? body.service_name ?? body.serviceName ?? body.service ?? url.searchParams.get('servicio') ?? url.searchParams.get('service_name') ?? url.searchParams.get('serviceName') ?? url.searchParams.get('service')
+      );
+      const staffId = normalizeUuid(
+        body.staff_id ?? body.staffId ?? url.searchParams.get('staff_id') ?? url.searchParams.get('staffId')
+      );
+      const staffName = getStringParam(
+        body.profesional ?? body.staff_name ?? body.staffName ?? body.staff ?? url.searchParams.get('profesional') ?? url.searchParams.get('staff_name') ?? url.searchParams.get('staffName') ?? url.searchParams.get('staff')
+      );
 
-      const { data, error } = await supabase.rpc('api_get_availability', {
+      const { data, error } = await supabase.rpc('api_get_availability_slots', {
         p_workspace_id: workspaceId,
         p_from: from,
         p_to: to,
+        p_service_id: serviceId,
+        p_service_name: serviceName,
+        p_staff_id: staffId,
+        p_staff_name: staffName,
       });
 
       if (error) return buildError(error.message, workspaceId, 400);
-      return buildResponse(data, workspaceId);
+
+      const payload = (data && typeof data === 'object') ? data as Record<string, unknown> : {};
+      const slots = Array.isArray(payload.slots) ? payload.slots : [];
+
+      console.log('[public-api][availability]', JSON.stringify({
+        workspace_id: workspaceId,
+        range_used: payload.range ?? { from, to },
+        resolved_service: payload.resolved_service ?? { service_id: serviceId, service_name: serviceName },
+        resolved_staff: payload.resolved_staff ?? { staff_id: staffId, staff_name: staffName },
+        duration_minutes: payload.duration_minutes ?? null,
+        slots_generated: slots.length,
+        blocking_appointments: payload.blocking_appointments ?? 0,
+      }));
+
+      return buildResponse({ slots }, workspaceId);
     }
 
     if (parts.length === 3 && parts[2] === 'customers') {
