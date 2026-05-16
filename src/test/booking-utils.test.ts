@@ -944,5 +944,50 @@ describe('booking-utils', () => {
       expect(slotTimes).not.toContain('16:30');
       expect(slotTimes).not.toContain('17:30');
     });
+
+    it('si dos citas de 30min completan una hora, no debe mantenerse forzado a medias horas', () => {
+      const morningWindow: Availability = {
+        ...baseAvailability,
+        id: 'availability-hour-completed-by-two-halves',
+        start_time: '10:00',
+        end_time: '14:00',
+      };
+
+      const appointments: Appointment[] = [
+        {
+          ...baseAppointment,
+          id: 'appointment-half-1',
+          start_time: '10:00',
+          end_time: '10:30',
+          status: 'confirmed',
+        },
+        {
+          ...baseAppointment,
+          id: 'appointment-half-2',
+          start_time: '10:30',
+          end_time: '11:00',
+          status: 'confirmed',
+        },
+      ];
+
+      const slots = generateTimeSlots(
+        [morningWindow],
+        appointments,
+        selectedDate,
+        60,
+        {
+          ...baseOpts,
+          serviceSlotStepMinutes: 30,
+        }
+      );
+
+      const slotTimes = slots.map((s) => s.time);
+
+      expect(slotTimes).toContain('11:00');
+      expect(slotTimes).toContain('12:00');
+      expect(slotTimes).toContain('13:00');
+      expect(slotTimes).not.toContain('11:30');
+      expect(slotTimes).not.toContain('12:30');
+    });
   });
 });

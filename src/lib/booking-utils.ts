@@ -321,13 +321,36 @@ function detectWindowGranularityAndOffset(
     return null;
   }
 
-  const phaseCounts = new Map<number, number>();
+  // If two 30-min appointments complete the same hour (:00 and :30 starts),
+  // that hour is already compact and should not force half-hour cadence.
+  const halfHourMaskByHour = new Map<number, number>();
   for (const appointment of thirtyMinuteAppointments) {
+    const hourKey = Math.floor(appointment.startMinutes / 60);
+    const startPhase = positiveModulo(appointment.startMinutes, 60);
+    const bit = startPhase === 0 ? 1 : startPhase === 30 ? 2 : 0;
+    if (bit === 0) {
+      continue;
+    }
+    halfHourMaskByHour.set(hourKey, (halfHourMaskByHour.get(hourKey) ?? 0) | bit);
+  }
+
+  const effectiveAppointments = thirtyMinuteAppointments.filter((appointment) => {
+    const hourKey = Math.floor(appointment.startMinutes / 60);
+    // Mask 3 means both halves of that hour are occupied.
+    return (halfHourMaskByHour.get(hourKey) ?? 0) !== 3;
+  });
+
+  if (effectiveAppointments.length === 0) {
+    return null;
+  }
+
+  const phaseCounts = new Map<number, number>();
+  for (const appointment of effectiveAppointments) {
     const phase = positiveModulo(appointment.endMinutes, 60);
     phaseCounts.set(phase, (phaseCounts.get(phase) ?? 0) + 1);
   }
 
-  let chosenPhase = positiveModulo(thirtyMinuteAppointments[0].endMinutes, 60);
+  let chosenPhase = positiveModulo(effectiveAppointments[0].endMinutes, 60);
   let chosenCount = phaseCounts.get(chosenPhase) ?? 0;
   for (const [phase, count] of phaseCounts.entries()) {
     if (count > chosenCount) {
