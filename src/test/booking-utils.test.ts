@@ -916,5 +916,33 @@ describe('booking-utils', () => {
       expect(slotTimes).not.toContain('16:30');
       expect(slotTimes).not.toContain('17:30');
     });
+
+    it('bloque limpio con servicio de 60min usa horas en punto aunque slot_step del servicio sea 30', () => {
+      const afternoonWindow: Availability = {
+        ...baseAvailability,
+        id: 'availability-afternoon-hourly-clean',
+        start_time: '15:00',
+        end_time: '21:00',
+      };
+
+      const slots = generateTimeSlots(
+        [afternoonWindow],
+        [],
+        selectedDate,
+        60,
+        {
+          ...baseOpts,
+          serviceSlotStepMinutes: 30,
+        }
+      );
+
+      const slotTimes = slots.map((s) => s.time);
+
+      expect(slotTimes).toContain('16:00');
+      expect(slotTimes).toContain('17:00');
+      expect(slotTimes).toContain('18:00');
+      expect(slotTimes).not.toContain('16:30');
+      expect(slotTimes).not.toContain('17:30');
+    });
   });
 });

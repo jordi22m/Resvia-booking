@@ -773,11 +773,16 @@ export function generateTimeSlots(
 
       let alignedCandidates = windowCandidates;
       if (forcedPattern === null) {
+        const alignmentStepMinutes =
+          serviceDuration >= 60 && serviceDuration % 60 === 0
+            ? 60
+            : adaptiveStepMinutes;
+
         alignedCandidates = alignWindowCandidates(
           segmentWindow,
           windowCandidates,
           appointmentsInSegment,
-          adaptiveStepMinutes,
+          alignmentStepMinutes,
           globalSlotInterval,
           serviceDuration
         );
@@ -788,6 +793,7 @@ export function generateTimeSlots(
             after: alignedCandidates.map((c) => c.time),
             segmentStart: segmentWindow.start_time,
             segmentEnd: segmentWindow.end_time,
+            alignmentStepMinutes,
           });
         }
       }
