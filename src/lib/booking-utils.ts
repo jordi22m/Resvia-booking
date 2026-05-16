@@ -94,6 +94,16 @@ function positiveModulo(value: number, mod: number): number {
   return ((value % mod) + mod) % mod;
 }
 
+function isSlotsDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('debugSlots') === '1';
+  } catch {
+    return false;
+  }
+}
+
 function resolveAdaptiveStepMinutes(
   options: SlotQueryOptions | undefined,
   globalSlotInterval: number,
@@ -588,7 +598,14 @@ export function generateTimeSlots(
   serviceDuration: number = 30,
   options?: SlotQueryOptions
 ): TimeSlot[] {
+  const debugSlots = isSlotsDebugEnabled();
+
   if (!hasDateWindowAvailability(selectedDate, options)) {
+    if (debugSlots) {
+      console.info('[slots-engine:v2] date rejected by window availability rules', {
+        date: format(selectedDate, 'yyyy-MM-dd'),
+      });
+    }
     return [];
   }
 
@@ -604,6 +621,12 @@ export function generateTimeSlots(
     options?.exceptions
   );
   if (dayAvailabilities.length === 0) {
+    if (debugSlots) {
+      console.info('[slots-engine:v2] no day availability windows', {
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        dayOfWeek,
+      });
+    }
     return [];
   }
 
@@ -618,6 +641,24 @@ export function generateTimeSlots(
     // (NOT 15:00 because it would create dead gap 14:30-15:00)
     const appointmentsInWindow = getAppointmentsInsideWindow(dayAppointments, window);
     const forcedPattern = detectWindowGranularityAndOffset(appointmentsInWindow);
+
+    if (debugSlots) {
+      console.info('[slots-engine:v2] processing window', {
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        windowStart: window.start_time,
+        windowEnd: window.end_time,
+        appointmentsInWindow: appointmentsInWindow.map((a) => ({
+          id: a.id,
+          start: a.start_time,
+          end: a.end_time,
+          status: a.status,
+        })),
+        forcedPattern,
+        globalSlotInterval,
+        adaptiveStepMinutes,
+        serviceDuration,
+      });
+    }
 
     const start = new Date(`1970-01-01T${window.start_time}`);
     const end = new Date(`1970-01-01T${window.end_time}`);
@@ -637,6 +678,14 @@ export function generateTimeSlots(
         if (forcedPattern !== null) {
           isValidForBlock = positiveModulo(startMinutes - forcedPattern.offset, 60) === 0;
         }
+
+        if (debugSlots && !isValidForBlock) {
+          console.info('[slots-engine:v2] slot rejected by forcedPattern', {
+            slot: timeString,
+            startMinutes,
+            offset: forcedPattern?.offset,
+          });
+        }
         
         if (isValidForBlock) {
           const available = isTimeSlotAvailable(
@@ -652,6 +701,12 @@ export function generateTimeSlots(
             windowCandidates.push({
               time: timeString,
               startMinutes,
+            });
+          } else if (debugSlots) {
+            console.info('[slots-engine:v2] slot rejected by availability checks', {
+              slot: timeString,
+              windowStart: window.start_time,
+              windowEnd: window.end_time,
             });
           }
         }
@@ -677,6 +732,13 @@ export function generateTimeSlots(
         globalSlotInterval,
         serviceDuration
       );
+
+      if (debugSlots && alignedCandidates.length !== windowCandidates.length) {
+        console.info('[slots-engine:v2] adaptive alignment filtered candidates', {
+          before: windowCandidates.map((c) => c.time),
+          after: alignedCandidates.map((c) => c.time),
+        });
+      }
     }
 
     for (const candidate of alignedCandidates) {
@@ -685,6 +747,13 @@ export function generateTimeSlots(
         available: true,
       });
     }
+  }
+
+  if (debugSlots) {
+    console.info('[slots-engine:v2] final slots', {
+      date: format(selectedDate, 'yyyy-MM-dd'),
+      slots: slots.map((s) => s.time),
+    });
   }
 
   return slots.sort((a, b) => toMinutes(a.time) - toMinutes(b.time));
