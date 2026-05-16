@@ -878,5 +878,43 @@ describe('booking-utils', () => {
       expect(dirtySlotsNow).toEqual(['14:30', '15:30']);
       expect(dirtySlotsNow).not.toContain('15:00');
     });
+
+    it('ventana continua todo el dia: cita 30min en manana no debe forzar tarde a medias horas', () => {
+      const fullDayWindow: Availability = {
+        ...baseAvailability,
+        id: 'availability-full-day-continuous',
+        start_time: '09:00',
+        end_time: '19:00',
+      };
+
+      const morningHalfHourAppointment: Appointment = {
+        ...baseAppointment,
+        id: 'appointment-morning-only-half-hour',
+        start_time: '10:00',
+        end_time: '10:30',
+        status: 'confirmed',
+      };
+
+      const slots = generateTimeSlots(
+        [fullDayWindow],
+        [morningHalfHourAppointment],
+        selectedDate,
+        60,
+        baseOpts
+      );
+
+      const slotTimes = slots.map((s) => s.time);
+
+      // Morning segment (09:00-13:59): 30-min pattern can appear.
+      expect(slotTimes).toContain('10:30');
+      expect(slotTimes).not.toContain('11:00');
+
+      // Afternoon segment (14:00-19:00) has no 30-min appointments.
+      // It should stay on hourly cadence, so no half-hour starts.
+      expect(slotTimes).toContain('16:00');
+      expect(slotTimes).toContain('17:00');
+      expect(slotTimes).not.toContain('16:30');
+      expect(slotTimes).not.toContain('17:30');
+    });
   });
 });

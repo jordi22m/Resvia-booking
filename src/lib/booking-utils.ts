@@ -233,6 +233,52 @@ function getAppointmentsInsideWindow(
   });
 }
 
+type AvailabilitySegment = {
+  startMinutes: number;
+  endMinutes: number;
+};
+
+const AFTERNOON_SPLIT_MINUTES = 14 * 60;
+
+function toTimeString(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60)
+    .toString()
+    .padStart(2, '0');
+  const minutes = (totalMinutes % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function splitWindowIntoDaySegments(window: Availability): AvailabilitySegment[] {
+  const windowStart = toMinutes(window.start_time);
+  const windowEnd = toMinutes(window.end_time);
+
+  if (windowEnd <= windowStart) {
+    return [];
+  }
+
+  const segments: AvailabilitySegment[] = [];
+
+  if (windowStart < AFTERNOON_SPLIT_MINUTES && windowEnd > AFTERNOON_SPLIT_MINUTES) {
+    segments.push({
+      startMinutes: windowStart,
+      endMinutes: AFTERNOON_SPLIT_MINUTES,
+    });
+    segments.push({
+      startMinutes: AFTERNOON_SPLIT_MINUTES,
+      endMinutes: windowEnd,
+    });
+  } else {
+    segments.push({
+      startMinutes: windowStart,
+      endMinutes: windowEnd,
+    });
+  }
+
+  return segments.filter((segment) => segment.endMinutes > segment.startMinutes);
+}
+
 function getAdaptiveOffsetCandidates(stepMinutes: number, baseSlotMinutes: number): number[] {
   if (stepMinutes <= 0 || baseSlotMinutes <= 0) {
     return [0];
@@ -636,116 +682,122 @@ export function generateTimeSlots(
   const seenTimes = new Set<string>();
 
   for (const window of dayAvailabilities) {
-    // CRITICAL: Detect if this block has enforced granularity with specific offset
-    // E.g., if cita 14:00-14:30 exists, offset = 0; all slots must be at 14:00, 14:30, 15:30, etc.
-    // (NOT 15:00 because it would create dead gap 14:30-15:00)
-    const appointmentsInWindow = getAppointmentsInsideWindow(dayAppointments, window);
-    const forcedPattern = detectWindowGranularityAndOffset(appointmentsInWindow);
+    const segments = splitWindowIntoDaySegments(window);
 
-    if (debugSlots) {
-      console.info('[slots-engine:v2] processing window', {
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        windowStart: window.start_time,
-        windowEnd: window.end_time,
-        appointmentsInWindow: appointmentsInWindow.map((a) => ({
-          id: a.id,
-          start: a.start_time,
-          end: a.end_time,
-          status: a.status,
-        })),
-        forcedPattern,
-        globalSlotInterval,
-        adaptiveStepMinutes,
-        serviceDuration,
-      });
-    }
+    for (const segment of segments) {
+      const segmentWindow: Availability = {
+        ...window,
+        start_time: toTimeString(segment.startMinutes),
+        end_time: toTimeString(segment.endMinutes),
+      };
 
-    const start = new Date(`1970-01-01T${window.start_time}`);
-    const end = new Date(`1970-01-01T${window.end_time}`);
-    const latestStart = new Date(end.getTime() - serviceDuration * 60_000);
-    let currentTime = new Date(start);
-    const windowCandidates: WindowSlotCandidate[] = [];
+      // Detect granularity per synthetic segment (morning/afternoon).
+      const appointmentsInSegment = getAppointmentsInsideWindow(dayAppointments, segmentWindow);
+      const forcedPattern = detectWindowGranularityAndOffset(appointmentsInSegment);
 
-    // Generate candidates using global interval, filtering by forced pattern if present
-    while (currentTime <= latestStart) {
-      const timeString = format(currentTime, 'HH:mm');
-      if (!seenTimes.has(timeString)) {
-        const startMinutes = toMinutes(timeString);
-        
-        // FILTER: If block has enforced granularity, ALL slots in that block
-        // must align to a single minute phase (e.g. :30).
-        let isValidForBlock = true;
-        if (forcedPattern !== null) {
-          isValidForBlock = positiveModulo(startMinutes - forcedPattern.offset, 60) === 0;
-        }
-
-        if (debugSlots && !isValidForBlock) {
-          console.info('[slots-engine:v2] slot rejected by forcedPattern', {
-            slot: timeString,
-            startMinutes,
-            offset: forcedPattern?.offset,
-          });
-        }
-        
-        if (isValidForBlock) {
-          const available = isTimeSlotAvailable(
-            dayAvailabilities,
-            appointments,
-            selectedDate,
-            timeString,
-            serviceDuration,
-            options
-          );
-
-          if (available) {
-            windowCandidates.push({
-              time: timeString,
-              startMinutes,
-            });
-          } else if (debugSlots) {
-            console.info('[slots-engine:v2] slot rejected by availability checks', {
-              slot: timeString,
-              windowStart: window.start_time,
-              windowEnd: window.end_time,
-            });
-          }
-        }
-        seenTimes.add(timeString);
-      }
-      currentTime = addMinutes(currentTime, globalSlotInterval);
-    }
-
-    // If no candidates after granularity filtering, skip this window
-    if (windowCandidates.length === 0) {
-      continue;
-    }
-
-    // Apply adaptive alignment ONLY if no forced pattern
-    // If forced pattern is active, candidates are already filtered correctly
-    let alignedCandidates = windowCandidates;
-    if (forcedPattern === null) {
-      alignedCandidates = alignWindowCandidates(
-        window,
-        windowCandidates,
-        appointmentsInWindow,
-        adaptiveStepMinutes,
-        globalSlotInterval,
-        serviceDuration
-      );
-
-      if (debugSlots && alignedCandidates.length !== windowCandidates.length) {
-        console.info('[slots-engine:v2] adaptive alignment filtered candidates', {
-          before: windowCandidates.map((c) => c.time),
-          after: alignedCandidates.map((c) => c.time),
+      if (debugSlots) {
+        console.info('[slots-engine:v2] processing window segment', {
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          windowStart: segmentWindow.start_time,
+          windowEnd: segmentWindow.end_time,
+          appointmentsInWindow: appointmentsInSegment.map((a) => ({
+            id: a.id,
+            start: a.start_time,
+            end: a.end_time,
+            status: a.status,
+          })),
+          forcedPattern,
+          globalSlotInterval,
+          adaptiveStepMinutes,
+          serviceDuration,
         });
       }
-    }
 
-    for (const candidate of alignedCandidates) {
-      slots.push({
-        time: candidate.time,
-        available: true,
-      });
+      const start = new Date(`1970-01-01T${segmentWindow.start_time}`);
+      const end = new Date(`1970-01-01T${segmentWindow.end_time}`);
+      const latestStart = new Date(end.getTime() - serviceDuration * 60_000);
+      let currentTime = new Date(start);
+      const windowCandidates: WindowSlotCandidate[] = [];
+
+      while (currentTime <= latestStart) {
+        const timeString = format(currentTime, 'HH:mm');
+        if (!seenTimes.has(timeString)) {
+          const startMinutes = toMinutes(timeString);
+
+          let isValidForBlock = true;
+          if (forcedPattern !== null) {
+            isValidForBlock = positiveModulo(startMinutes - forcedPattern.offset, 60) === 0;
+          }
+
+          if (debugSlots && !isValidForBlock) {
+            console.info('[slots-engine:v2] slot rejected by forcedPattern', {
+              slot: timeString,
+              startMinutes,
+              offset: forcedPattern?.offset,
+              segmentStart: segmentWindow.start_time,
+              segmentEnd: segmentWindow.end_time,
+            });
+          }
+
+          if (isValidForBlock) {
+            const available = isTimeSlotAvailable(
+              dayAvailabilities,
+              appointments,
+              selectedDate,
+              timeString,
+              serviceDuration,
+              options
+            );
+
+            if (available) {
+              windowCandidates.push({
+                time: timeString,
+                startMinutes,
+              });
+            } else if (debugSlots) {
+              console.info('[slots-engine:v2] slot rejected by availability checks', {
+                slot: timeString,
+                windowStart: segmentWindow.start_time,
+                windowEnd: segmentWindow.end_time,
+              });
+            }
+          }
+          seenTimes.add(timeString);
+        }
+        currentTime = addMinutes(currentTime, globalSlotInterval);
+      }
+
+      if (windowCandidates.length === 0) {
+        continue;
+      }
+
+      let alignedCandidates = windowCandidates;
+      if (forcedPattern === null) {
+        alignedCandidates = alignWindowCandidates(
+          segmentWindow,
+          windowCandidates,
+          appointmentsInSegment,
+          adaptiveStepMinutes,
+          globalSlotInterval,
+          serviceDuration
+        );
+
+        if (debugSlots && alignedCandidates.length !== windowCandidates.length) {
+          console.info('[slots-engine:v2] adaptive alignment filtered candidates', {
+            before: windowCandidates.map((c) => c.time),
+            after: alignedCandidates.map((c) => c.time),
+            segmentStart: segmentWindow.start_time,
+            segmentEnd: segmentWindow.end_time,
+          });
+        }
+      }
+
+      for (const candidate of alignedCandidates) {
+        slots.push({
+          time: candidate.time,
+          available: true,
+        });
+      }
     }
   }
 
